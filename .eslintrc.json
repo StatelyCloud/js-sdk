@@ -1,0 +1,188 @@
+{
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 12,
+    "sourceType": "module",
+    "project": "./tsconfig.json"
+  },
+  "ignorePatterns": ["**/dist/**/*", "**/*.test.ts", "**/*.pb.ts"],
+  "plugins": ["@typescript-eslint", "sonarjs"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended-type-checked",
+    "plugin:@typescript-eslint/stylistic-type-checked",
+    "prettier"
+  ],
+  "env": {
+    "browser": true,
+    "es2021": true
+  },
+  "reportUnusedDisableDirectives": true,
+  "rules": {
+    "arrow-body-style": ["error", "as-needed"],
+    "class-methods-use-this": ["error", { "exceptMethods": ["render"] }],
+    "curly": ["error", "all"],
+    "eqeqeq": ["error", "always"],
+    "func-name-matching": "error",
+    "logical-assignment-operators": "error",
+    "no-lonely-if": "error",
+    "no-return-await": "off",
+    "no-unmodified-loop-condition": "error",
+    "no-unneeded-ternary": "error",
+    "no-unreachable-loop": "error",
+    "no-unused-private-class-members": "error",
+    "no-useless-call": "error",
+    "no-useless-concat": "error",
+    "no-useless-rename": "error",
+    "no-alert": "error",
+    "no-console": "error",
+    "no-debugger": "error",
+    "no-empty": "off",
+    "no-implicit-coercion": "error",
+    "no-implied-eval": "off",
+    "no-restricted-globals": [
+      "error",
+      "name",
+      "location",
+      "history",
+      "menubar",
+      "scrollbars",
+      "statusbar",
+      "toolbar",
+      "status",
+      "closed",
+      "frames",
+      "length",
+      "top",
+      "opener",
+      "parent",
+      "origin",
+      "external",
+      "screen",
+      "defaultstatus",
+      "crypto",
+      "close",
+      "find",
+      "focus",
+      "open",
+      "print",
+      "scroll",
+      "stop",
+      "chrome",
+      "caches",
+      "scheduler"
+    ],
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["testing/*"],
+            "message": "You cannot use test helpers in regular code."
+          }
+        ]
+      }
+    ],
+    "prefer-promise-reject-errors": "error",
+    "prefer-regex-literals": "error",
+    "prefer-spread": "error",
+    "prefer-template": "error",
+    "radix": "error",
+    "spaced-comment": [
+      "error",
+      "always",
+      { "exceptions": ["@__INLINE__"], "block": { "balanced": true } }
+    ],
+    "yoda": "error",
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      {
+        "varsIgnorePattern": "^_.",
+        "argsIgnorePattern": "^_.",
+        "ignoreRestSiblings": true
+      }
+    ],
+    "@typescript-eslint/prefer-nullish-coalescing": [
+      "off",
+      {
+        "ignoreConditionalTests": true,
+        "ignoreTernaryTests": false,
+        "ignoreMixedLogicalExpressions": true,
+        "ignorePrimitives": {
+          "boolean": true,
+          "number": false,
+          "string": true
+        }
+      }
+    ],
+    "@typescript-eslint/array-type": "error",
+    "@typescript-eslint/await-thenable": "error",
+    "@typescript-eslint/consistent-generic-constructors": "error",
+    "@typescript-eslint/consistent-indexed-object-style": "off",
+    "@typescript-eslint/consistent-type-definitions": "error",
+    "@typescript-eslint/explicit-function-return-type": "off",
+    "@typescript-eslint/explicit-member-accessibility": "off",
+    "@typescript-eslint/explicit-module-boundary-types": "off",
+    "@typescript-eslint/method-signature-style": "error",
+    "@typescript-eslint/no-base-to-string": "error",
+    "@typescript-eslint/no-duplicate-enum-values": "error",
+    "@typescript-eslint/no-explicit-any": "off",
+    "@typescript-eslint/no-extraneous-class": "error",
+    "@typescript-eslint/no-floating-promises": "off",
+    "@typescript-eslint/no-for-in-array": "error",
+    "@typescript-eslint/no-implied-eval": "error",
+    "@typescript-eslint/no-misused-promises": [
+      "error",
+      {
+        "checksVoidReturn": false
+      }
+    ],
+    "@typescript-eslint/no-non-null-asserted-optional-chain": "error",
+    "@typescript-eslint/no-non-null-assertion": "off",
+    "@typescript-eslint/no-parameter-properties": "off",
+    "@typescript-eslint/no-redundant-type-constituents": "off",
+    "@typescript-eslint/no-this-alias": "error",
+    "@typescript-eslint/no-throw-literal": "error",
+    "@typescript-eslint/no-unnecessary-boolean-literal-compare": "error",
+    "@typescript-eslint/no-unnecessary-qualifier": "error",
+    "@typescript-eslint/no-unnecessary-type-arguments": "error",
+    "@typescript-eslint/no-unnecessary-type-assertion": "error",
+    "@typescript-eslint/no-unnecessary-type-constraint": "error",
+    "@typescript-eslint/no-unsafe-argument": "error",
+    "@typescript-eslint/no-unsafe-assignment": "error",
+    "@typescript-eslint/no-unsafe-call": "error",
+    "@typescript-eslint/no-unsafe-enum-comparison": "off",
+    "@typescript-eslint/no-unsafe-member-access": "error",
+    "@typescript-eslint/no-unsafe-return": "error",
+    "@typescript-eslint/no-use-before-define": ["error", { "functions": false }],
+    "@typescript-eslint/no-var-requires": "off",
+    "@typescript-eslint/non-nullable-type-assertion-style": "error",
+    "@typescript-eslint/prefer-as-const": "error",
+    "@typescript-eslint/prefer-for-of": "error",
+    "@typescript-eslint/prefer-function-type": "error",
+    "@typescript-eslint/prefer-includes": "error",
+    "@typescript-eslint/prefer-optional-chain": "error",
+    "@typescript-eslint/prefer-reduce-type-parameter": "error",
+    "@typescript-eslint/prefer-string-starts-ends-with": "error",
+    "@typescript-eslint/prefer-ts-expect-error": "error",
+    "@typescript-eslint/require-await": "off",
+    "@typescript-eslint/return-await": ["error", "in-try-catch"],
+    "@typescript-eslint/switch-exhaustiveness-check": "error",
+    "@typescript-eslint/unified-signatures": "error",
+    "sonarjs/cognitive-complexity": "off",
+    "sonarjs/no-duplicate-string": "off",
+    "sonarjs/no-nested-switch": "off",
+    "sonarjs/no-nested-template-literals": "off",
+    "sonarjs/no-small-switch": "off",
+    "sonarjs/prefer-immediate-return": "off"
+  },
+  "overrides": [
+    {
+      "files": ["*.test.ts"],
+      "rules": {
+        // We don't want to allow importing test modules in app modules, but of course you can do it in other test modules.
+        "no-restricted-imports": "off"
+      }
+    }
+  ]
+}

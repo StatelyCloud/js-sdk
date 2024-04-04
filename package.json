@@ -1,0 +1,81 @@
+{
+  "name": "@stately-cloud/client",
+  "version": "0.1.0",
+  "author": "Stately Cloud <support@stately.cloud> (https://stately.cloud/)",
+  "description": "Javascript client for Stately API",
+  "types": "dist/index.d.ts",
+  "module": "dist/index.js",
+  "type": "module",
+  "files": [
+    "package.json",
+    "README.md",
+    "LICENSE.txt",
+    "dist/**"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    },
+    "./web": {
+      "types": "./dist/web.d.ts",
+      "default": "./dist/web.js"
+    },
+    "./auth": {
+      "types": "./dist/auth.d.ts",
+      "default": "./dist/auth.js"
+    },
+    "./data": {
+      "types": "./dist/data.d.ts",
+      "default": "./dist/data.js"
+    },
+    "./management": {
+      "types": "./dist/management.d.ts",
+      "default": "./dist/management.js"
+    },
+    "./user": {
+      "types": "./dist/user.d.ts",
+      "default": "./dist/user.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig-build.json",
+    "fix:prettier": "prettier --write 'src/**/*.ts'",
+    "lint:prettier": "prettier 'src/**/*.ts'",
+    "lint": "eslint 'src/**/*.ts'",
+    "fix:eslint": "eslint --fix 'src/**/*.ts'",
+    "test": "NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
+  },
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "@types/jest": "29.5.12",
+    "@types/node": "20.12.2",
+    "@typescript-eslint/eslint-plugin": "7.4.0",
+    "@typescript-eslint/parser": "7.4.0",
+    "eslint": "8.57.0",
+    "eslint-config-prettier": "9.1.0",
+    "eslint-plugin-sonarjs": "0.25.0",
+    "jest": "29.7.0",
+    "ts-jest": "29.1.2",
+    "typescript": "5.4.3"
+  },
+  "dependencies": {
+    "core-js": "3.36.1",
+    "long": "5.2.3",
+    "nice-grpc": "^2.1.8",
+    "nice-grpc-client-middleware-deadline": "2.0.11",
+    "nice-grpc-client-middleware-retry": "3.1.7",
+    "nice-grpc-common": "2.0.2",
+    "nice-grpc-web": "3.3.3",
+    "protobufjs": "7.2.6"
+  }
+}
