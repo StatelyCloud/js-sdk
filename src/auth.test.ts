@@ -1,13 +1,14 @@
-import { afterAll, beforeAll, describe, expect, it, jest } from "@jest/globals";
-import { initServerAuth } from "./auth";
+import { expect } from "expect";
+import { after, before, describe, it, type Mock, mock } from "node:test";
+import { initServerAuth } from "./auth.js";
 
 const unmockedFetch = global.fetch;
 let abortController: AbortController | undefined = undefined;
-beforeAll(() => {
+before(() => {
   abortController = new AbortController();
 });
 
-afterAll(() => {
+after(() => {
   abortController?.abort();
   global.fetch = unmockedFetch;
 });
@@ -15,7 +16,7 @@ afterAll(() => {
 describe("initServerAuth test", () => {
   it("fetches token correctly", async () => {
     // mock fetch
-    global.fetch = jest.fn((input: RequestInfo | URL, init?: RequestInit | undefined) => {
+    global.fetch = mock.fn((input: RequestInfo | URL, init?: RequestInit | undefined) => {
       // make assertions
       expect(input).toEqual("test-domain/oauth/token");
       expect(init).toHaveProperty("method", "POST");
@@ -31,7 +32,7 @@ describe("initServerAuth test", () => {
       return Promise.resolve({
         json: () => Promise.resolve({ access_token: "test-token", expires_in: 100000 }),
       });
-    }) as jest.Mock<typeof fetch>;
+    }) as Mock<typeof fetch>;
 
     // generate the getToken func
     const getToken = initServerAuth({
@@ -46,9 +47,9 @@ describe("initServerAuth test", () => {
     expect(await getToken()).toEqual("test-token");
 
     // override global fetch to throw an error
-    global.fetch = jest.fn((input: RequestInfo | URL, init?: RequestInit | undefined) => {
+    global.fetch = mock.fn((_input: RequestInfo | URL, _init?: RequestInit | undefined) => {
       throw Error("boom");
-    }) as jest.Mock<typeof fetch>;
+    }) as Mock<typeof fetch>;
 
     // call getToken again and check that it returns the same value without making a network request
     // which would explode
@@ -58,17 +59,15 @@ describe("initServerAuth test", () => {
   it("dedupes concurrent refresh requests", async () => {
     // mock fetch
     let count = 0;
-    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit | undefined) => {
+    global.fetch = mock.fn(async (_input: RequestInfo | URL, _init?: RequestInit | undefined) => {
       // return mock response after 100ms
-      let token = count;
+      const token = count;
       count++;
       await new Promise((resolve) => setTimeout(resolve, 100));
       return Promise.resolve({
-        json: () => {
-          return Promise.resolve({ access_token: `${token}`, expires_in: 100000 });
-        },
+        json: () => Promise.resolve({ access_token: `${token}`, expires_in: 100000 }),
       });
-    }) as jest.Mock<typeof fetch>;
+    }) as Mock<typeof fetch>;
 
     // generate the getToken func
     const getToken = initServerAuth({
@@ -77,9 +76,7 @@ describe("initServerAuth test", () => {
       abortSignal: abortController?.signal,
     });
 
-    const promises = Array.from(Array(10), async () => {
-      return await getToken();
-    });
+    const promises = Array.from(Array(10), async () => getToken());
     const results = await Promise.all(promises);
     for (const r of results) {
       expect(r).toEqual("0");
@@ -89,13 +86,11 @@ describe("initServerAuth test", () => {
   it("expires auth based on response", async () => {
     // mock fetch
     let token = "test-token";
-    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit | undefined) => {
-      return Promise.resolve({
-        json: () => {
-          return Promise.resolve({ access_token: `${token}`, expires_in: 0 });
-        },
-      });
-    }) as jest.Mock<typeof fetch>;
+    global.fetch = mock.fn(async (_input: RequestInfo | URL, _init?: RequestInit | undefined) =>
+      Promise.resolve({
+        json: () => Promise.resolve({ access_token: `${token}`, expires_in: 0 }),
+      }),
+    ) as Mock<typeof fetch>;
 
     // generate the getToken func
     const getToken = initServerAuth({

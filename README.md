@@ -65,11 +65,11 @@ This is typically done with "tree-shaking" which is really just dead-code
 elimination of unused imports. What can and can't be "tree-shaken" is really
 up to the specifics of different bundlers and minifiers (Webpack, Terser,
 etc.) and takes some experience to know. That said, there are some limits to
-how much we can tree-shake due to the structure of the code that ts-proto
+how much we can tree-shake due to the structure of the code that protobuf-es
 generates - if we really wanted to do per-method imports, we would have to
 generate each method separately, instead of as a single object for the whole
 service. To do that we'd really need to take over code generation, even
-though we can reuse a fair bit of code from nice-grpc. gRPC-Web (especially
+though we can reuse a fair bit of code from protobuf-es. Connect-Web (especially
 unary) isn't that complicated so this is potentially worth it!
 
 However, there's another mitigating factor, which is that this client should

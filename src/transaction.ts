@@ -1,34 +1,32 @@
-import { ClientError } from "nice-grpc-common";
-import { AppendItem, AppendItem_IDAssignment } from "./api/data/append.pb.js";
-import { DeleteItem } from "./api/data/delete.pb.js";
-import type { GetItem } from "./api/data/get.pb.js";
-import { SortableProperty } from "./api/data/item-property.pb.js";
-import type { Item as ApiItem } from "./api/data/item.pb.js";
-import { SortDirection } from "./api/data/list.pb.js";
-import type { PutItem } from "./api/data/put.pb.js";
-import type { TransactionRequest, TransactionResponse } from "./api/data/transaction.pb.js";
+import { create, MessageShape } from "@bufbuild/protobuf";
+import { EmptySchema } from "@bufbuild/protobuf/wkt";
+import { ContinueListDirection } from "./api/db/continue_list_pb.js";
+import { GetItemSchema, type GetItem } from "./api/db/get_pb.js";
+import { type Item as ApiItem } from "./api/db/item_pb.js";
+import { SortableProperty } from "./api/db/item_property_pb.js";
+import { SortDirection } from "./api/db/list_pb.js";
+import { type ListToken } from "./api/db/list_token_pb.js";
 import {
-  ItemAppend,
-  ItemPut,
-  ListToken,
-  itemKeyToString,
-  type DataClient,
-  type Item,
-  type ItemKey,
-  type JSONObject,
-  type ListOptions,
-} from "./data.js";
-import { convertToItem } from "./item.js";
-import { ListResult, collectListResponse, handleListResponse } from "./list-result.js";
+  TransactionDeleteSchema,
+  TransactionGetSchema,
+  TransactionPutSchema,
+  TransactionRequestSchema,
+  type TransactionRequest,
+  type TransactionResponse,
+} from "./api/db/transaction_pb.js";
+import { handleListResponse, ListResult } from "./list-result.js";
+import { type AnyItem, type Item, type ItemTypeMap, type ListOptions } from "./types.js";
 
 /**
  * This allows us to queue messages to send to the server. It implements
  * AsyncIteratable so it can be used directly in the transaction method.
  */
-class BlockingQueue<T> implements AsyncIterator<T>, AsyncIterable<T> {
+export class BlockingQueue<T> implements AsyncIterator<T>, AsyncIterable<T> {
   private queue: T[] = [];
   // eslint-disable-next-line class-methods-use-this, @typescript-eslint/no-empty-function
   private resolveNext: () => void = () => {};
+  // eslint-disable-next-line class-methods-use-this, @typescript-eslint/no-empty-function
+  private rejectNext: (e: unknown) => void = () => {};
   private currentPromise: Promise<void> = Promise.resolve();
 
   push(item: T): void {
@@ -45,11 +43,13 @@ class BlockingQueue<T> implements AsyncIterator<T>, AsyncIterable<T> {
   // Waits until the next result is available (e.g. the next push() call if the queue is empty)
   async next(): Promise<IteratorResult<T>> {
     if (this.queue.length > 0) {
-      return { done: false, value: this.queue.shift()! };
+      const value = this.queue.shift()!;
+      return { done: false, value };
     }
     await this.currentPromise;
     if (this.queue.length > 0) {
-      return { done: false, value: this.queue.shift()! };
+      const value = this.queue.shift()!;
+      return { done: false, value };
     }
     return { done: true, value: undefined };
   }
@@ -60,31 +60,42 @@ class BlockingQueue<T> implements AsyncIterator<T>, AsyncIterable<T> {
   }
 
   private cyclePromise() {
-    this.currentPromise = new Promise((r) => {
+    this.currentPromise = new Promise((r, e) => {
       this.resolveNext = r;
+      this.rejectNext = e;
     });
+  }
+
+  async throw(e?: any): Promise<IteratorResult<T>> {
+    this.queue = [];
+    this.rejectNext(e);
+    return { done: true, value: undefined };
   }
 }
 
-// Crazy TypeScript helpers for ts-proto generated unions
+// Crazy TypeScript helpers for generated unions
 
-/** Extracts all the field names of a ts-proto generated oneOf */
-type OneOfCases<T> = T extends { $case: infer U extends string } ? U : never;
-// /** Extracts all the possible values of a ts-proto generated oneOf */
-// type OneOfValues<T> = T extends { $case: infer U extends string; [key: string]: unknown }
-//   ? T[U]
-//   : never;
-/** Extracts the specific type of a a ts-proto generated oneOf case based on its field name */
-type OneOfCase<T, K extends OneOfCases<T>> = T extends {
-  $case: infer U extends K;
-  [key: string]: unknown;
+/** Extracts all the field names of a generated oneOf */
+type OneOfCases<T> = T extends { case: infer U extends string } ? U : never;
+/** Extracts the specific type of a a generated oneOf case based on its field name */
+type OneOfOption<T, K extends OneOfCases<T>> = T extends {
+  case: K;
+  value: unknown;
 }
-  ? T[U]
+  ? T
+  : never;
+/** Extracts the specific type of a a generated oneOf case based on its field name */
+type OneOfCase<T, K extends OneOfCases<T>> = T extends {
+  case: K;
+  value: unknown;
+}
+  ? T["value"]
   : never;
 
 /**
  * Validates that a response contains the right result case, and that it's the
- * response to the right request (by message ID).
+ * response to the right request (by message ID). Returns the correct response
+ * case value.
  */
 function expectResponse<K extends OneOfCases<TransactionResponse["result"]>>(
   response: IteratorResult<TransactionResponse>,
@@ -101,388 +112,289 @@ function expectResponse<K extends OneOfCases<TransactionResponse["result"]>>(
     );
   }
   const respOpt = result.result;
-  if (respOpt === undefined || respOpt.$case !== c) {
-    throw new Error(`unexpected response type: ${result.result?.$case}, wanted ${c}`);
+  if (respOpt === undefined || respOpt.case !== c) {
+    throw new Error(`unexpected response type: ${result.result?.case}, wanted ${c}`);
   }
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return
-  return (respOpt as any)[c];
+
+  return respOpt.value as OneOfCase<TransactionResponse["result"], K>;
 }
 
-const empty = new Uint8Array(0);
+export interface TransactionHelperDeps<
+  TypeMap extends ItemTypeMap,
+  AllItemTypes extends keyof TypeMap,
+> {
+  storeId: bigint;
+  unmarshal: (item: ApiItem) => AnyItem<TypeMap, AllItemTypes>;
+  marshal: (item: AnyItem<TypeMap, AllItemTypes>) => ApiItem;
+  isType: <T extends keyof TypeMap>(
+    item: MessageShape<TypeMap[keyof TypeMap]> | undefined,
+    itemType: T,
+  ) => item is Item<TypeMap, T>;
+}
 
 /** TransactionHelper coordinates sending requests and awaiting responses for
  * all of the transaction methods. It is passed directly to the user-defined
  * handler function.
  */
-class TransactionHelper {
-  private _messageId = 1;
+export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends keyof TypeMap> {
+  private messageId = 1;
+  private client: TransactionHelperDeps<TypeMap, AllItemTypes>;
   private outgoing: BlockingQueue<TransactionRequest>;
   resp: AsyncIterator<TransactionResponse> | undefined;
+  responseDone = false;
 
-  private putItems: Record<string, ApiItem> = {};
-  private appendItems: JSONObject[] = [];
-
-  constructor(storeId: bigint, outgoing: BlockingQueue<TransactionRequest>) {
+  constructor(
+    client: TransactionHelperDeps<TypeMap, AllItemTypes>,
+    outgoing: BlockingQueue<TransactionRequest>,
+  ) {
     this.outgoing = outgoing;
-    outgoing.push({
-      messageId: this.nextMessageId(),
-      command: {
-        $case: "begin",
-        begin: {
-          storeId,
+    this.client = client;
+    outgoing.push(
+      create(TransactionRequestSchema, {
+        messageId: this.nextMessageId(),
+        command: {
+          case: "begin",
+          value: {
+            storeId: client.storeId,
+          },
         },
-      },
-    });
+      }),
+    );
   }
 
   /** Each outgoing message should get its own unique ID */
-  nextMessageId(): number {
-    return this._messageId++;
+  private nextMessageId(): number {
+    return this.messageId++;
   }
 
   /**
    * getBatch retrieves a set of items by their full key paths. This will return
-   * the items that exist. Use BeginList if you want to retrieve multiple items
-   * but don't already know the full key paths of the items you want to get. You
-   * can get items of different types in a single getBatch, but you will need to
-   * relax the type argument to a supertype of your items, likely `JSONObject`,
-   * and then use `itemsOfType` to filter them back out.
+   * the corresponding items that exist. It will fail if the caller does not
+   * have permission to read Items. Use BeginList if you want to retrieve
+   * multiple items but don't already know the full key paths of the items you
+   * want to get. You can get items of different types in a single getBatch -
+   * you will need to use `DatabaseClient.isItemOfType` to determine what item
+   * type each item is.
    * @param keyPaths - The full key path of each item to load.
    * @example
-   * const items = await txn.getBatch<Equipment>(dataClient,
-   * ["/jedi-luke/equipment-lightsaber", "/jedi-luke/equipment-cloak"]);
+   * const [firstItem, secondItem] = await txn.getBatch("/jedi-luke/equipment-lightsaber", "/jedi-luke/equipment-cloak");
+   * if (client.isItemOfType(firstItem, "Equipment")) {
+   *  console.log("Got an Equipment item", firstItem);
+   * }
    */
-  async getBatch<T extends JSONObject = JSONObject>(
-    keyPaths: (string | ItemKey)[],
-  ): Promise<Item<T>[]> {
-    const gets: GetItem[] = keyPaths.map((keyPath) => ({
-      keyPath: typeof keyPath === "string" ? keyPath : itemKeyToString(keyPath),
-    }));
-    const response = await this.requestResponse("getItems", "getResults", {
-      gets,
-    });
-    return response.items.map((item) => convertToItem<T>(item));
+  async getBatch(...keyPaths: string[]): Promise<AnyItem<TypeMap, AllItemTypes>[]> {
+    const gets: GetItem[] = keyPaths.map((keyPath) =>
+      create(GetItemSchema, {
+        keyPath,
+      }),
+    );
+    const response = await this.requestResponse(
+      "getItems",
+      "getResults",
+      create(TransactionGetSchema, {
+        gets,
+      }),
+    );
+    return response.items.map((item) => this.client.unmarshal(item));
   }
 
   /**
    * get retrieves an item by its full key path. This will return the item if it
-   * exists, or undefined if it does not.
+   * exists, or undefined if it does not. It will fail if  the caller does not
+   * have permission to read Items.
+   * @param itemType - One of the itemType names from your schema. This is used
+   * to determine the type of the resulting item.
    * @param keyPath - The full key path of the item.
    * @example
-   * const item = await txn.get<Equipment>("/jedi-luke/equipment-lightsaber");
+   * const item = await client.get('Equipment', "/jedi-luke/equipment-lightsaber");
    */
-  async get<T extends JSONObject = JSONObject>(
-    keyPath: string | ItemKey,
-  ): Promise<Item<T> | undefined> {
-    return (await this.getBatch<T>([keyPath]))[0];
+  async get<T extends keyof TypeMap & AllItemTypes>(
+    itemType: T,
+    keyPath: string,
+  ): Promise<Item<TypeMap, T> | undefined> {
+    const [result] = await this.getBatch(keyPath);
+    if (this.client.isType(result, itemType)) {
+      return result;
+    } else if (result) {
+      throw new Error(`Expected item type ${itemType as string}, got ${result.$typeName}`);
+    }
+    return undefined;
   }
 
   /**
    * putBatch adds Items to the Store, or replaces Items if they already exist
-   * at that path. You can put items of different types in a single putBatch,
-   * but you will need to relax the type argument to a supertype of your items,
-   * likely `JSONObject`. Puts will not be acknowledged until the transaction is
-   * committed - the TransactionResult will contain the updated metadata for
-   * each item.
-   * @param puts - The full key path of each item and its data. This supports
-   * any JSON-serializable data, but not custom classes, functions, Maps, Sets,
-   * etc.
+   * at that path. This will fail if the caller does not have permission to
+   * create Items. Data can be provided as either JSON, or as a proto encoded by
+   * a previously agreed upon schema, or by some combination of the two. You can
+   * put items of different types in a single putBatch. Puts will not be
+   * acknowledged until the transaction is committed - the TransactionResult
+   * will contain the updated metadata for each item.
+   * @param items - Items from your generated schema.
+   * @returns An array of generated IDs for each item, if that item had an ID
+   * generated for its "initialValue" field. Otherwise the value is undefined.
+   * These are returned in the same order as the input items. This value can be
+   * used in subsequent puts to reference newly created items.
    * @example
-   * await txn.putBatch([
-   *   { keyPath: "/jedi-luke/equipment-lightsaber", data: { color: "green" }},
-   *   { keyPath: "/jedi-luke/equipment-cloak", data: { color: "brown" }}
-   * ]);
+   * const items = await txn.putBatch(dataClient,
+   *   client.create("Equipment", { color: "green", jedi: "luke", type: "lightsaber" }),
+   *   client.create("Equipment", { color: "brown", jedi: "luke", type: "cloak" }),
+   * );
    */
-  async putBatch<T extends JSONObject>(puts: ItemPut<T>[]): Promise<void> {
-    const putItems: PutItem[] = puts.map(({ keyPath, data }) => ({
-      item: {
-        keyPath: typeof keyPath === "string" ? keyPath : itemKeyToString(keyPath),
-        json: data,
-        proto: empty,
-        metadata: undefined,
-      },
-    }));
-    for (const put of putItems) {
-      this.putItems[put.item!.keyPath] = put.item!;
-    }
-    await this.requestOnly("putItems", {
-      puts: putItems,
-    });
+  async putBatch<Items extends AnyItem<TypeMap, AllItemTypes>[]>(
+    ...items: Items
+  ): Promise<(bigint | Uint8Array | undefined)[]> {
+    const result = await this.requestResponse(
+      "putItems",
+      "putAck",
+      create(TransactionPutSchema, {
+        puts: items.map((data) => ({
+          item: this.client.marshal(data),
+        })),
+      }),
+    );
+    return result.generatedIds.map((id) => id.value.value);
   }
 
   /**
    * put adds an Item to the Store, or replaces the Item if it already exists at
-   * that path. Puts will not be acknowledged until the transaction is
-   * committed - the TransactionResult will contain the updated metadata for
-   * each item.
-   * @param keyPath - The full key path of the item.
-   * @param data - The JSON data to save with the item. This supports any
-   * JSON-serializable data, but not custom classes, functions, Maps, Sets, etc.
+   * that path. This will fail if the caller does not have permission to create
+   * Items.
+   * @param item - An Item from your generated schema.
+   * @returns A generated ID for the item, if that item had an ID generated for
+   * its "initialValue" field. Otherwise the value is undefined. This value can
+   * be used in subsequent puts to reference newly created items.
    * @example
-   * const item = await txn.put("/jedi-luke/equipment-lightsaber", { color: "green" });
+   * let lightsaber = client.create("Equipment", { color: "green", jedi: "luke", type: "lightsaber" });
+   * lightsaber = await client.put(lightsaber);
    */
-  async put<T extends JSONObject>(keyPath: string | ItemKey, data: T): Promise<void> {
-    await this.putBatch<T>([{ keyPath, data }]);
+  async put<I extends AnyItem<TypeMap, AllItemTypes>>(
+    item: I,
+  ): Promise<bigint | Uint8Array | undefined> {
+    return (await this.putBatch(item))[0];
   }
 
   /**
-   * appendBatch adds one or more new Items to a parent path, automatically
-   * assigning IDs via one of several selectable ID generation strategies (not
-   * all strategies may be available to all store configurations or path types).
-   * Because the ID is generated by the server, the new item is guaranteed not
-   * to overwrite an existing Item. This differs from Put specifically because
-   * of this ID assignment behavior, and it is recommended over Put for new
-   * items where you do not want to assign IDs yourself. The assigned full key
-   * paths will be returned immediately for use in other transaction operations,
-   * but the rest of the item information (such as its metadata) won't be
-   * returned until the transaction completes. You can append items of different
-   * types in a single appendBatch, but you will need to relax the type argument
-   * to a supertype of your items, likely `JSONObject`.
-   * @param parentPath - The full key path of the parent item. Each append will
-   * be a new child of this item.
-   * @param appends - The item type and data of each item to append, along with
-   * which ID assignment strategy you want. This supports any JSON-serializable
-   * data, but not custom classes, functions, Maps, Sets, etc.
+   * del removes one or more Items from the Store by their full key paths. This
+   * will fail if the caller does not have permission to delete Items.
+   * @param keyPaths - The full key paths of the items.
    * @example
-   * const items = await txn.appendBatch("/jedi-luke", [
-   *   { itemType: "equipment", id: IDAssignment.SEQUENCE, { name: "lightsaber", color: "green" }},
-   *   { itemType: "equipment", id: IDAssignment.SEQUENCE, { name: "cloak", color: "brown" }}
-   * ]);
+   * await txn.del("/jedi-luke/equipment-lightsaber", "/jedi-luke/equipment-cloak");
    */
-  async appendBatch<T extends JSONObject>(
-    parentPath: string | ItemKey,
-    appends: ItemAppend<T>[],
-  ): Promise<string[]> {
-    const appendItems: AppendItem[] = appends.map(({ itemType, id, data }) => ({
-      itemType,
-      idAssignment: id,
-      json: data,
-      proto: empty,
-    }));
-    for (const append of appends) {
-      this.appendItems.push(append.data);
-    }
-    const response = await this.requestResponse("appendItems", "appendAck", {
-      parentPath: typeof parentPath === "string" ? parentPath : itemKeyToString(parentPath),
-      appends: appendItems,
-    });
-    return response.keyPaths;
-  }
-
-  /**
-   * append adds a new Item to a parent path, automatically assigning IDs via one
-   * of several selectable ID generation strategies (not all strategies may be
-   * available to all store configurations or path types). Because the ID is
-   * generated by the server, the new item is guaranteed not to overwrite an
-   * existing Item. This differs from Put specifically because of this ID
-   * assignment behavior, and it is recommended over Put for new items where you
-   * do not want to assign IDs yourself. The assigned full key
-   * path will be returned immediately for use in other transaction operations,
-   * but the rest of the item information (such as its metadata) won't be
-   * returned until the transaction completes.
-   * @param parentPath - The full key path of the parent item. Each append will be
-   * a new child of this item.
-   * @param itemType - The item type of the newly added item.
-   * @param idAssignment - The ID assignment strategy to use when picking this
-   * item's ID.
-   * @param data - this supports any JSON-serializable data, but not custom
-   * classes, functions, Maps, Sets, etc.
-   * @example
-   * const items = await txn.append([
-   *   {"/jedi-luke/equipment-lightsaber", { color: "green" }},
-   *   {"/jedi-luke/equipment-cloak", { color: "brown" }}
-   * ]);
-   */
-  async append<T extends JSONObject>(
-    parentPath: string | ItemKey,
-    itemType: string,
-    id: AppendItem_IDAssignment,
-    data: T,
-  ): Promise<string | undefined> {
-    return (await this.appendBatch<T>(parentPath, [{ itemType, id, data }]))[0];
-  }
-
-  /**
-   * delBatch removes Items from the Store by their full key paths.
-   * @param keyPaths - The full key paths (or ItemKeys) of the items.
-   * @example
-   * await txn.delBatch(["/jedi-luke/equipment-lightsaber", "/jedi-luke/equipment-cloak"]);
-   */
-  async delBatch(keyPaths: (string | ItemKey)[]): Promise<void> {
-    const deletes: DeleteItem[] = keyPaths.map((keyPath) => ({
-      keyPath: typeof keyPath === "string" ? keyPath : itemKeyToString(keyPath),
-    }));
-    await this.requestOnly("deleteItems", {
-      deletes,
-    });
-  }
-
-  /**
-   * del removes an Item from the Store by its full key path.
-   * @param keyPath - The full key path of the item.
-   * @example
-   * await txn.del("/jedi-luke/equipment-lightsaber");
-   */
-  async del(keyPath: string | ItemKey): Promise<void> {
-    await this.delBatch([keyPath]);
-  }
-
-  /**
-   * beginListStream loads Items that start with a specified key path, subject to
-   * additional filtering. The prefix must minimally contain a Group Key (an item
-   * type and an item ID). beginList will return an empty result set if there are
-   * no items matching that key prefix. A token is returned from this API that you
-   * can then pass to ContinueList to expand the result set, or to SyncList to get
-   * updates within the result set. This can fail if the caller does not have
-   * permission to read Items.
-   *
-   * beginListStream streams results via an AsyncGenerator, allowing you to handle
-   * results as they arrive.
-   *
-   * You can list items of different types in a single beginListStream, but you
-   * will need to relax the type argument to a supertype of your items, likely
-   * `JSONObject`.
-   * @param client - A {@linkcode DataClient} created by
-   * {@linkcode createDataClient}.
-   * @param keyPathPrefix - The key path prefix to query for.
-   * @example
-   * // With "for await"
-   * const listResp = txn.beginListStream<Equipment>("/jedi-luke/equipment-lightsaber/");
-   * for await (const item of listResp) {
-   *   console.log(item);
-   * }
-   * const token = listResp.token;
-   * @example
-   * // Direct iteration "for await"
-   * const listResp = txn.beginListStream<Equipment>("/jedi-luke/equipment-lightsaber/");
-   * let next;
-   * while (!(next = await listResp.next()).done) {
-   *   console.log(next.value);
-   * }
-   * const token = next.value;
-   */
-  beginListStream<T extends JSONObject = JSONObject>(
-    keyPathPrefix: string | ItemKey,
-    { limit = 0, sortDirection = SortDirection.SORT_ASCENDING }: ListOptions = {},
-  ): ListResult<Item<T>> {
-    // TODO: this needs to be streamy
-    const reqMessageId = this.nextMessageId();
-    this.outgoing.push({
-      messageId: reqMessageId,
-      command: {
-        $case: "beginList",
-        beginList: {
-          keyPathPrefix:
-            typeof keyPathPrefix === "string" ? keyPathPrefix : itemKeyToString(keyPathPrefix),
-          limit,
-          sortProperty: SortableProperty.KEY_PATH,
-          sortDirection,
-        },
-      },
-    });
-
-    return new ListResult(handleListResponse(this.streamListResponses(reqMessageId)));
+  async del(...keyPaths: string[]): Promise<void> {
+    await this.requestOnly(
+      "deleteItems",
+      create(TransactionDeleteSchema, {
+        deletes: keyPaths.map((keyPath) => ({
+          keyPath,
+        })),
+      }),
+    );
   }
 
   /**
    * beginList loads Items that start with a specified key path, subject to
-   * additional filtering. The prefix must minimally contain a Group Key (an item
-   * type and an item ID). beginList will return an empty result set if there are
-   * no items matching that key prefix. A token is returned from this API that you
-   * can then pass to ContinueList to expand the result set, or to SyncList to get
-   * updates within the result set. This can fail if the caller does not have
-   * permission to read Items. Use beginListStream if you want to handle items as
-   * they arrive rather than batching them all up. You can list items of different
-   * types in a single beginListStream, but you will need to relax the type
-   * argument to a supertype of your items, likely `JSONObject`, and then use
-   * `itemsOfType` to filter them back out.
+   * additional filtering. The prefix must minimally contain a Group Key (an
+   * item type and an item ID). beginList will return an empty result set if
+   * there are no items matching that key prefix. A token is returned from this
+   * API that you can then pass to continueList to expand the result set, or to
+   * syncList to get updates within the result set. This can fail if the caller
+   * does not have permission to read Items.
+   *
+   * beginList streams results via an AsyncGenerator, allowing you to handle
+   * results as they arrive. You can call `collect()` on it to get all the
+   * results as a list.
+   *
+   * You can list items of different types in a single beginList, and you can
+   * use `client.isItemType` to handle different item types.
    * @param keyPathPrefix - The key path prefix to query for.
    * @example
-   * const { items, token } = await txn.beginList<Equipment>("/jedi-luke/equipment-lightsaber/");
+   * // With "for await"
+   * const listResp = txn.beginList("/jedi-luke/equipment-lightsaber/");
+   * for await (const item of listResp) {
+   *   if (client.isItemOfType(item, "Equipment")) {
+   *     console.log(item.color);
+   *   } else {
+   *     console.log(item);
+   *   }
+   * }
+   * token = listResp.token;
    */
-  async beginList<T extends JSONObject = JSONObject>(
-    keyPathPrefix: string | ItemKey,
-    opts?: ListOptions,
-  ): Promise<{ items: Item<T>[]; token: ListToken }> {
-    return collectListResponse(this.beginListStream<T>(keyPathPrefix, opts));
+  beginList(
+    keyPathPrefix: string,
+    { limit = 0, sortDirection = SortDirection.SORT_ASCENDING }: ListOptions = {},
+  ): ListResult<AnyItem<TypeMap, AllItemTypes>> {
+    const reqMessageId = this.nextMessageId();
+    this.outgoing.push(
+      create(TransactionRequestSchema, {
+        messageId: reqMessageId,
+        command: {
+          case: "beginList",
+          value: {
+            keyPathPrefix,
+            limit,
+            sortProperty: SortableProperty.KEY_PATH,
+            sortDirection,
+          },
+        },
+      }),
+    );
+
+    return new ListResult(
+      handleListResponse(this.client.unmarshal, this.streamListResponses(reqMessageId)),
+    );
   }
 
   /**
-   * continueListStream takes the token from a BeginList call and returns the next
+   * continueList takes the token from a beginList call and returns the next
    * "page" of results based on the original query parameters and pagination
-   * options. It has few options because it is a continuation of a previous list
-   * operation. It will return a new token which can be used for another
-   * ContinueList call, and so on. The token is the same one used by SyncList -
-   * each time you call either ContinueList or SyncList, you should pass the
+   * options. It doesn't have options because it is a continuation of a previous
+   * list operation. It will return a new token which can be used for another
+   * continueList call, and so on. The token is the same one used by syncList -
+   * each time you call either continueList or syncList, you should pass the
    * latest version of the token, and then use the new token from the result in
-   * subsequent calls. You may interleave ContinueList and SyncList calls however
-   * you like, but it does not make sense to make both calls in parallel. Calls to
-   * ContinueList are tied to the authorization of the original BeginList call, so
-   * if the original BeginList call was allowed, ContinueList with its token
-   * should also be allowed.
+   * subsequent calls. You may interleave continueList and syncList calls
+   * however you like, but it does not make sense to make both calls in
+   * parallel. Calls to continueList are tied to the authorization of the
+   * original beginList call, so if the original beginList call was allowed,
+   * continueList with its token should also be allowed.
    *
-   * continueListStream streams results via an AsyncGenerator, allowing you to handle
-   * results as they arrive.
-   * @param client - A {@linkcode DataClient} created by
-   * {@linkcode createDataClient}.
+   * continueList streams results via an AsyncGenerator, allowing you to handle
+   * results as they arrive. You can call `collect()` on it to get all the
+   * results as a list.
+   *
+   * You can list items of different types in a single continueList, and you can
+   * use `client.isItemType` to handle different item types.
    * @param tokenData - the token data from the previous list operation.
    * @example
-   * // With "for await"
-   * const listResp = txn.continueListStream<Equipment>(token.data);
+   * const listResp = txn.continueList(dataClient, token.data);
    * for await (const item of listResp) {
-   *   console.log(item);
+   *   if (client.isItemOfType(item, "Equipment")) {
+   *     console.log(item.color);
+   *   } else {
+   *     console.log(item);
+   *   }
    * }
-   * const token = listResp.token;
-   * @example
-   * // Direct iteration "for await"
-   * const listResp = txn.continueListStream<Equipment>(token.data);
-   * let next;
-   * while (!(next = await listResp.next()).done) {
-   *   console.log(next.value);
-   * }
-   * const token = next.value;
+   * token = listResp.token;
    */
-  continueListStream<T extends JSONObject = JSONObject>(
-    tokenData: Uint8Array | ListToken,
-  ): ListResult<Item<T>> {
+  continueList(tokenData: Uint8Array | ListToken): ListResult<AnyItem<TypeMap, AllItemTypes>> {
     // TODO: this needs to be streamy
     const reqMessageId = this.nextMessageId();
-    this.outgoing.push({
-      messageId: reqMessageId,
-      command: {
-        $case: "continueList",
-        continueList: {
-          tokenData: "tokenData" in tokenData ? tokenData.tokenData : tokenData,
-          direction: SortDirection.SORT_ASCENDING,
+    this.outgoing.push(
+      create(TransactionRequestSchema, {
+        messageId: reqMessageId,
+        command: {
+          case: "continueList",
+          value: {
+            tokenData: "tokenData" in tokenData ? tokenData.tokenData : tokenData,
+            direction: ContinueListDirection.CONTINUE_LIST_FORWARD,
+          },
         },
-      },
-    });
+      }),
+    );
 
-    return new ListResult(handleListResponse(this.streamListResponses(reqMessageId)));
-  }
-
-  /**
-   * continueList takes the token from a BeginList call and returns the next
-   * "page" of results based on the original query parameters and pagination
-   * options. It has few options because it is a continuation of a previous list
-   * operation. It will return a new token which can be used for another
-   * ContinueList call, and so on. The token is the same one used by SyncList -
-   * each time you call either ContinueList or SyncList, you should pass the
-   * latest version of the token, and then use the new token from the result in
-   * subsequent calls. You may interleave ContinueList and SyncList calls however
-   * you like, but it does not make sense to make both calls in parallel. Calls to
-   * ContinueList are tied to the authorization of the original BeginList call, so
-   * if the original BeginList call was allowed, ContinueList with its token
-   * should also be allowed. Use continueListStream if you want to handle items as
-   * they arrive rather than batching them all up.
-   * @param tokenData - the token data from the previous list operation.
-   * @example
-   * const { items, token } = await txn.continueList(token.tokenData);
-   */
-  async continueList<T extends JSONObject = JSONObject>(
-    tokenData: Uint8Array | ListToken,
-  ): Promise<{ items: Item<T>[]; token: ListToken }> {
-    return collectListResponse(this.continueListStream<T>(tokenData));
+    return new ListResult(
+      handleListResponse(this.client.unmarshal, this.streamListResponses(reqMessageId)),
+    );
   }
 
   private async *streamListResponses(reqMessageId: number) {
@@ -497,29 +409,11 @@ class TransactionHelper {
    * error.
    * @private
    */
-  async commit(): Promise<TransactionResult> {
-    const finished = await this.requestResponse("commit", "finished", {});
+  async commit(): Promise<TransactionResult<TypeMap, AllItemTypes>> {
+    const finished = await this.requestResponse("commit", "finished", create(EmptySchema, {}));
     return {
-      puts: finished.putResults.map((result) => {
-        const item = this.putItems[result.keyPath];
-        if (!item) {
-          throw new Error("response returned an item we didn't put!");
-        }
-        return convertToItem<JSONObject>({ ...item, metadata: result.metadata! });
-      }),
-      appends: finished.appendResults.map((result, i) => {
-        const item = this.appendItems[i];
-        if (!item) {
-          throw new Error("response returned an item we didn't append!");
-        }
-        return convertToItem<JSONObject>({
-          keyPath: result.keyPath,
-          metadata: result.metadata!,
-
-          json: item,
-          proto: empty,
-        });
-      }),
+      puts: finished.putResults.map((result) => this.client.unmarshal(result)),
+      committed: finished.committed,
     };
   }
 
@@ -529,7 +423,7 @@ class TransactionHelper {
    * @private
    */
   async abort(): Promise<void> {
-    await this.requestResponse("abort", "finished", {});
+    await this.requestResponse("abort", "finished", create(EmptySchema, {}));
   }
 
   /** A helper that sends an input command, then waits for an output result. */
@@ -542,14 +436,15 @@ class TransactionHelper {
     req: OneOfCase<TransactionRequest["command"], In>,
   ): Promise<OneOfCase<TransactionResponse["result"], Out>> {
     const reqMessageId = this.nextMessageId();
-    this.outgoing.push({
-      messageId: reqMessageId,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      command: {
-        $case: inCase,
-        [inCase]: req,
-      } as any,
-    });
+    this.outgoing.push(
+      create(TransactionRequestSchema, {
+        messageId: reqMessageId,
+        command: {
+          case: inCase,
+          value: req,
+        } as OneOfOption<TransactionRequest["command"], In>,
+      }),
+    );
     return expectResponse(await this.resp!.next(), outCase, reqMessageId);
   }
 
@@ -558,14 +453,15 @@ class TransactionHelper {
     inCase: In,
     req: OneOfCase<TransactionRequest["command"], In>,
   ): Promise<void> {
-    this.outgoing.push({
-      messageId: this.nextMessageId(),
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      command: {
-        $case: inCase,
-        [inCase]: req,
-      } as any,
-    });
+    this.outgoing.push(
+      create(TransactionRequestSchema, {
+        messageId: this.nextMessageId(),
+        command: {
+          case: inCase,
+          value: req,
+        } as OneOfOption<TransactionRequest["command"], In>,
+      }),
+    );
   }
 }
 
@@ -579,87 +475,29 @@ class TransactionHelper {
  * function (i.e. the argument to `transaction`). The normal data functions
  * should not be used within a transaction handler function`.
  */
-export type Transaction = Omit<TransactionHelper, "resp" | "nextMessageId" | "commit" | "abort">;
+export type Transaction<TypeMap extends ItemTypeMap, AllItemTypes extends keyof TypeMap> = Omit<
+  TransactionHelper<TypeMap, AllItemTypes>,
+  "resp" | "nextMessageId" | "commit" | "abort"
+>;
 
 /**
  * After a transaction is done, this result contains the updated or created
  * items from any puts or appends in the transaction.
  */
-export interface TransactionResult {
+export interface TransactionResult<
+  TypeMap extends ItemTypeMap,
+  AllItemTypes extends keyof TypeMap,
+> {
   /**
    * puts contains the full result of each Put operation as a new Item.
    * Unfortunately we don't know the type of each item so you'll have to convert yourself:
    * @example
    * const myItem = result.puts[0] as Item<MyType>;
    */
-  puts: Item[];
+  puts: AnyItem<TypeMap, AllItemTypes>[];
+
   /**
-   * appends contains the full result of each Append operation as a new Item.
-   * Unfortunately we don't know the type of each item so you'll have to convert yourself:
-   * @example
-   * const myItem = result.appends[0] as Item<MyType>;
+   * Did the commit finish (the alternative is that it was aborted/rolled back)
    */
-  appends: Item[];
-}
-
-/**
- * Transaction performs a transaction, within which you can issue writes and
- * reads in any order, and all writes will either succeed or all will fail.
- * Reads are guaranteed to reflect the state as of when the transaction started.
- * This method may fail if another transaction commits before this one finishes
- * - in that case, you should retry your transaction.
- *
- * If any error is thrown from the handler, the transaction is aborted and none
- * of the changes made in it will be applied. If the handler returns without
- * error, the transaction is automatically committed.
- *
- * If any of the operations in the handler fails (e.g. a request is invalid) you
- * may not find out until the *next* operation, or once the handler returns, due
- * to some technicalities about how requests are handled.
- *
- * @example
- * await transaction(dataClient, async (txn) => {
- *   const item = await txn.get<MyModel>("/path/to/item");
- *   if (item.data.someField === "someValue") {
- *     await txn.put<MyModel>(item.keyPath, { ...item.data, someField: "newValue" });
- *   }
- * });
- */
-export async function transaction(
-  client: DataClient,
-  handler: (txnClient: Transaction) => Promise<void>,
-): Promise<TransactionResult> {
-  if (!client.supportsBidi) {
-    throw new Error(
-      "this client does not support transactions (it requires bidirectional streaming which isn't supported from browsers)",
-    );
-  }
-
-  const outgoing = new BlockingQueue<TransactionRequest>();
-  const txnClient = new TransactionHelper(client.storeId, outgoing);
-  const respIterable = client._client.transaction(outgoing, client.callOptions);
-  txnClient.resp = respIterable[Symbol.asyncIterator]();
-  try {
-    await handler(txnClient);
-    // Close the outgoing queue - nothing should be left in it, but this unlocks the req generator to do its commit.
-    return await txnClient.commit();
-  } catch (e) {
-    if (!(e instanceof ClientError)) {
-      try {
-        await txnClient.abort();
-      } catch (abortErr) {
-        // If we can't abort, still throw the original error
-      }
-    }
-    throw e;
-  } finally {
-    await outgoing.close();
-    // Drain the response if there is one (there shouldn't be...)
-    let remainingResp: IteratorResult<TransactionResponse>;
-    do {
-      remainingResp = await txnClient.resp.next();
-    } while (!remainingResp.done);
-  }
-
-  // TODO: in the future we could auto-retry transactions that fail due to conflicts
+  committed: boolean;
 }

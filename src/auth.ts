@@ -1,4 +1,4 @@
-import { AuthTokenProvider } from "./index.js";
+import { type AuthTokenProvider } from "./types.js";
 
 const DEFAULT_GRANT_TYPE = "client_credentials";
 

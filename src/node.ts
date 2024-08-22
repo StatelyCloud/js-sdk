@@ -1,12 +1,9 @@
-import { createChannel, createClientFactory } from "nice-grpc";
-import { deadlineMiddleware } from "nice-grpc-client-middleware-deadline";
-import { retryMiddleware } from "nice-grpc-client-middleware-retry";
-import { createAuthMiddleware } from "./auth-middleware.js";
+import { createPromiseClient, type Interceptor } from "@connectrpc/connect";
+import { createConnectTransport } from "@connectrpc/connect-node";
 import { initServerAuth } from "./auth.js";
-import { AllCallOptions, Client, ClientOptions } from "./index.js";
-import { RawClient } from "./nice-types/client.js";
-import { NormalizedServiceDefinition } from "./nice-types/service-definition.js";
-import { requestIdMiddleware } from "./request-id-middleware.js";
+import { createAuthMiddleware } from "./middleware/auth.js";
+import { requestIdMiddleware } from "./middleware/request-id.js";
+import type { ClientFactory, ClientOptions } from "./types.js";
 
 /**
  * Creates a configuration for a Stately Cloud API client, to be used from
@@ -17,32 +14,35 @@ import { requestIdMiddleware } from "./request-id-middleware.js";
 export function createNodeClient({
   authTokenProvider = initServerAuth(),
   endpoint = "https://api.stately.cloud",
-}: Partial<ClientOptions> = {}): Client {
-  const requiredOptions: ClientOptions = {
-    authTokenProvider,
-    endpoint,
-  };
+}: ClientOptions = {}): ClientFactory {
+  if (!("Headers" in global)) {
+    throw new Error(
+      "createNodeClient can only be used in environments with a `Headers` constructor that's globally available. You may need a newer Node version, or to install a polyfill for `fetch`.",
+    );
+  }
+  // TODO: We're installing all the middlewares here by default, but in the
+  // future we could expose a custom client builder that only installs (and pays
+  // for in bundle size) the middlewares a user wants.
+
+  if (!authTokenProvider) {
+    throw new Error("authTokenProvider is required");
+  }
 
   // TODO: We're installing all the middlewares here by default, but in the
   // future we could expose a custom client builder that only installs (and pays
   // for in bundle size) the middlewares a user wants.
 
-  const channel = createChannel(requiredOptions.endpoint);
-  const clientFactory = createClientFactory()
-    .use(requestIdMiddleware)
-    .use(createAuthMiddleware(requiredOptions.authTokenProvider))
-    // https://github.com/deeplay-io/nice-grpc/tree/master/packages/nice-grpc-client-middleware-retry
-    .use(retryMiddleware)
-    // https://github.com/deeplay-io/nice-grpc/tree/master/packages/nice-grpc-client-middleware-deadline
-    .use(deadlineMiddleware);
+  const interceptors: Interceptor[] = [
+    requestIdMiddleware,
+    createAuthMiddleware(authTokenProvider),
+    // retryMiddleware,
+  ];
 
-  return {
-    create: (definition) => ({
-      _client: clientFactory.create(definition, channel) as RawClient<
-        NormalizedServiceDefinition<typeof definition>,
-        AllCallOptions
-      >,
-      supportsBidi: true,
-    }),
-  };
+  const transport = createConnectTransport({
+    baseUrl: endpoint,
+    httpVersion: "2",
+    interceptors,
+  });
+
+  return (definition) => createPromiseClient(definition, transport);
 }

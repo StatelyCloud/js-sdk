@@ -1,8 +1,11 @@
-import type { ListResponse } from "./api/data/list.pb.js";
-import { SyncListResponse } from "./api/data/sync-list.pb.js";
-import { TransactionListResponse } from "./api/data/transaction.pb.js";
-import type { Item, JSONObject, ListToken } from "./data.js";
-import { convertToItem } from "./item.js";
+import { Code } from "@connectrpc/connect";
+import { type Item as ApiItem } from "./api/db/item_pb.js";
+import type { ListResponse } from "./api/db/list_pb.js";
+import { type ListToken } from "./api/db/list_token_pb.js";
+import { type SyncListResponse } from "./api/db/sync_list_pb.js";
+import { type TransactionListResponse } from "./api/db/transaction_pb.js";
+import { StatelyError } from "./errors.js";
+import type { AnyItem, ItemTypeMap } from "./types.js";
 
 /**
  * ListResult wraps an AsyncGenerator of items and a token. It can be iterated
@@ -56,68 +59,82 @@ export class ListResult<ResultType> implements AsyncGenerator<ResultType, ListTo
   throw(e: any): Promise<IteratorResult<ResultType, ListToken>> {
     return this.gen.throw(e);
   }
-}
 
-/**
- * A helper to consume a ListResponse as an async generator of items.
- */
-export async function* handleListResponse<T extends JSONObject>(
-  responseStream: AsyncIterable<ListResponse | TransactionListResponse>,
-): AsyncGenerator<Item<T>, ListToken> {
-  for await (const resp of responseStream) {
-    switch (resp.response?.$case) {
-      case "result":
-        for (const item of resp.response.result.items) {
-          yield convertToItem(item);
-        }
-        break;
-      case "finished":
-        return resp.response.finished.token!;
-      default:
+  /**
+   * Collect all of the items from the generator into an array, and return the
+   * list token. This is a convenience for when you don't want to handle the
+   * items in a streaming fashion (e.g. with `for await`).
+   */
+  async collect(): Promise<{ items: ResultType[]; token: ListToken }> {
+    const items: ResultType[] = [];
+    let next: IteratorResult<ResultType, ListToken | undefined>;
+    while (!(next = await this.next()).done) {
+      items.push(next.value);
     }
+    const token = next.value!;
+    return { items, token };
   }
-  throw new Error("unexpected end of stream");
-}
-
-/**
- * A helper to collect up all of the items from a streaming list response.
- */
-export async function collectListResponse<ResultType>(
-  stream: AsyncGenerator<ResultType, ListToken | undefined>,
-): Promise<{ items: ResultType[]; token: ListToken }> {
-  const items: ResultType[] = [];
-  let next: IteratorResult<ResultType, ListToken | undefined>;
-  while (!(next = await stream.next()).done) {
-    items.push(next.value);
-  }
-  const token = next.value!;
-  return { items, token };
 }
 
 /**
  * A helper to consume a ListResponse as an async generator of items.
  */
-export async function* handleSyncListResponse<T extends JSONObject>(
+export async function* handleListResponse<
+  TypeMap extends ItemTypeMap,
+  AllItemTypes extends keyof TypeMap,
+>(
+  unmarshal: (item: ApiItem) => AnyItem<TypeMap, AllItemTypes>,
+  responseStream: AsyncIterable<ListResponse | TransactionListResponse>,
+): AsyncGenerator<AnyItem<TypeMap, AllItemTypes>, ListToken> {
+  try {
+    for await (const resp of responseStream) {
+      switch (resp.response?.case) {
+        case "result":
+          for (const item of resp.response.value.items) {
+            yield unmarshal(item);
+          }
+          break;
+        case "finished":
+          return resp.response.value.token!;
+        default:
+      }
+    }
+  } catch (e) {
+    throw StatelyError.from(e);
+  }
+  throw new StatelyError("StreamClosed", "unexpected end of list stream", Code.FailedPrecondition);
+}
+
+/**
+ * A helper to consume a ListResponse as an async generator of items.
+ */
+export async function* handleSyncListResponse<
+  TypeMap extends ItemTypeMap,
+  AllItemTypes extends keyof TypeMap,
+>(
+  unmarshal: (item: ApiItem) => AnyItem<TypeMap, AllItemTypes>,
   responseStream: AsyncIterable<SyncListResponse>,
-): AsyncGenerator<SyncResult<T>, ListToken> {
+): AsyncGenerator<SyncResult<TypeMap, AllItemTypes>, ListToken> {
   for await (const resp of responseStream) {
-    switch (resp.response?.$case) {
+    switch (resp.response?.case) {
       case "reset":
         yield { type: "reset" };
         break;
-      case "result":
-        for (const item of resp.response.result.changedItems) {
-          yield { type: "changed", item: convertToItem(item) };
+      case "result": {
+        const v = resp.response.value;
+        for (const item of v.changedItems) {
+          yield { type: "changed", item: unmarshal(item) };
         }
-        for (const item of resp.response.result.deletedItems) {
+        for (const item of v.deletedItems) {
           yield { type: "deleted", keyPath: item.keyPath };
         }
-        for (const keyPath of resp.response.result.updatedItemKeysOutsideListWindow) {
+        for (const keyPath of v.updatedItemKeysOutsideListWindow) {
           yield { type: "updatedOutsideWindow", keyPath: keyPath };
         }
         break;
+      }
       case "finished":
-        return resp.response.finished.token!;
+        return resp.response.value.token!;
       default:
     }
   }
@@ -144,9 +161,9 @@ export async function* handleSyncListResponse<T extends JSONObject>(
  *   }
  * }
  */
-export type SyncResult<T extends JSONObject> =
+export type SyncResult<TypeMap extends ItemTypeMap, AllItemTypes extends keyof TypeMap> =
   | SyncReset
-  | SyncChangedItem<T>
+  | SyncChangedItem<AnyItem<TypeMap, AllItemTypes>>
   | SyncDeletedItem
   | SyncUpdatedItemKeyOutsideListWindow;
 
@@ -165,9 +182,9 @@ export interface SyncReset {
  * If the result is a SyncChangedItem, it means that the item has been changed
  * or newly created. The item should be "upserted" into the local result set.
  */
-export interface SyncChangedItem<T extends JSONObject> {
+export interface SyncChangedItem<T> {
   type: "changed";
-  item: Item<T>;
+  item: T;
 }
 
 /**
