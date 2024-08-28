@@ -1,3 +1,5 @@
+import { Code } from "@connectrpc/connect";
+import { StatelyError } from "./errors.js";
 import { type AuthTokenProvider } from "./types.js";
 
 const DEFAULT_GRANT_TYPE = "client_credentials";
@@ -37,10 +39,12 @@ export function initServerAuth({
 
   // this also fails if either are an empty string
   if (!clientID || !clientSecret) {
-    throw Error(
+    throw new StatelyError(
+      "MissingCredentials",
       `Failed to resolve auth credentials. \
 Please ensure the "STATELY_CLIENT_ID" and "STATELY_CLIENT_SECRET" \
 environment variables are set, or pass in the client ID and secret explicitly: createNodeClient({ authTokenProvider: initServerAuth({ clientID, clientSecret }) }).`,
+      Code.FailedPrecondition,
     );
   }
 

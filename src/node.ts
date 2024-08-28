@@ -1,6 +1,7 @@
-import { createPromiseClient, type Interceptor } from "@connectrpc/connect";
+import { Code, createPromiseClient, type Interceptor } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-node";
 import { initServerAuth } from "./auth.js";
+import { StatelyError } from "./errors.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import { requestIdMiddleware } from "./middleware/request-id.js";
 import type { ClientFactory, ClientOptions } from "./types.js";
@@ -16,8 +17,10 @@ export function createNodeClient({
   endpoint = "https://api.stately.cloud",
 }: ClientOptions = {}): ClientFactory {
   if (!("Headers" in global)) {
-    throw new Error(
+    throw new StatelyError(
+      "IncompatibleEnvironment",
       "createNodeClient can only be used in environments with a `Headers` constructor that's globally available. You may need a newer Node version, or to install a polyfill for `fetch`.",
+      Code.FailedPrecondition,
     );
   }
   // TODO: We're installing all the middlewares here by default, but in the
@@ -25,7 +28,11 @@ export function createNodeClient({
   // for in bundle size) the middlewares a user wants.
 
   if (!authTokenProvider) {
-    throw new Error("authTokenProvider is required");
+    throw new StatelyError(
+      "InvalidArgument",
+      "authTokenProvider is required",
+      Code.InvalidArgument,
+    );
   }
 
   // TODO: We're installing all the middlewares here by default, but in the

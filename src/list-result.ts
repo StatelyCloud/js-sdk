@@ -138,7 +138,7 @@ export async function* handleSyncListResponse<
       default:
     }
   }
-  throw new Error("unexpected end of stream");
+  throw new StatelyError("EndOfStream", "unexpected end of stream", Code.Aborted);
 }
 
 /**

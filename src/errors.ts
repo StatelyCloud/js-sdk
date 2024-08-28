@@ -1,4 +1,5 @@
 import { Code, ConnectError } from "@connectrpc/connect";
+import { StatelyErrorDetailsSchema } from "./api/errors/error_details_pb.js";
 
 // Initially forked/inspired by ConnectError
 
@@ -22,6 +23,8 @@ export class StatelyError extends Error {
    */
   readonly statelyCode: string;
 
+  readonly cause?: string | Error;
+
   override name = "StatelyError";
 
   /**
@@ -35,29 +38,51 @@ export class StatelyError extends Error {
     statelyCode: string,
     message: string,
     code: Code = (Code[statelyCode as unknown as number] as unknown as Code) ?? Code.Unknown,
-    _cause?: unknown,
+    cause?: string | Error,
   ) {
     super(createMessage(message, statelyCode, code));
     // see https://www.typescriptlang.org/docs/handbook/release-notes/typescript-2-2.html#example
     Object.setPrototypeOf(this, new.target.prototype);
     this.statelyCode = statelyCode;
     this.code = code;
+    this.cause = cause;
   }
 
   /**
    * Convert any value - typically a caught error into a StatelyError, following
    * these rules:
    * - If the value is already a StatelyError, return it as is.
-   * - Convert into a ConnectError, using the rules of ConnectError.from and a
-   *   Stately error code of "Unknown". The converted ConnectError will be used
-   *   for the "cause" property for the new ConnectError.
+   * - If it is a ConnectError, convert into a StatelyError, using the
+   *   StatelyErrorDetails in the returned error.
+   * - Otherwise convert to a ConnectError using the rules of ConnectError.from
+   *   and a Stately error code of "Unknown". The converted ConnectError will be
+   *   used for the "cause" property for the new ConnectError.
    */
   static from(e: unknown) {
     if (e instanceof StatelyError) {
       return e;
     }
     const connectError = ConnectError.from(e);
-    return new StatelyError("Unknown", connectError.message, connectError.code, connectError);
+
+    const details =
+      connectError.findDetails<typeof StatelyErrorDetailsSchema>(StatelyErrorDetailsSchema);
+
+    if (details && details.length > 0) {
+      const detail = details[0];
+      return new StatelyError(
+        detail.statelyCode,
+        detail.message,
+        connectError.code,
+        detail.upstreamCause,
+      );
+    }
+
+    return new StatelyError(
+      Code[connectError.code],
+      connectError.rawMessage,
+      connectError.code,
+      connectError,
+    );
   }
 
   /**
@@ -70,7 +95,13 @@ export class StatelyError extends Error {
     if (Object.getPrototypeOf(v) === StatelyError.prototype) {
       return true;
     }
-    return v.name === "StatelyError" && "code" in v && typeof v.code === "number";
+    return (
+      v.name === "StatelyError" &&
+      "code" in v &&
+      typeof v.code === "number" &&
+      "statelyCode" in v &&
+      typeof v.statelyCode === "string"
+    );
   }
 }
 
@@ -78,9 +109,6 @@ export class StatelyError extends Error {
  * Create an error message, prefixing the given code.
  */
 function createMessage(message: string, statelyCode: string, code: Code) {
-  let codeString = Code[code];
-  if (statelyCode !== codeString) {
-    codeString = `${codeString}/${statelyCode}`;
-  }
+  const codeString = `${Code[code]}/${statelyCode}`;
   return message.length ? `(${codeString}) ${message}` : `(${codeString})`;
 }

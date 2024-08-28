@@ -1,5 +1,6 @@
 import { create, MessageShape } from "@bufbuild/protobuf";
 import { EmptySchema } from "@bufbuild/protobuf/wkt";
+import { Code } from "@connectrpc/connect";
 import { ContinueListDirection } from "./api/db/continue_list_pb.js";
 import { GetItemSchema, type GetItem } from "./api/db/get_pb.js";
 import { type Item as ApiItem } from "./api/db/item_pb.js";
@@ -14,6 +15,7 @@ import {
   type TransactionRequest,
   type TransactionResponse,
 } from "./api/db/transaction_pb.js";
+import { StatelyError } from "./errors.js";
 import { handleListResponse, ListResult } from "./list-result.js";
 import { type AnyItem, type Item, type ItemTypeMap, type ListOptions } from "./types.js";
 
@@ -103,17 +105,23 @@ function expectResponse<K extends OneOfCases<TransactionResponse["result"]>>(
   reqMessageId: number,
 ): OneOfCase<TransactionResponse["result"], K> {
   if (response.done) {
-    throw new Error("unexpected end of stream");
+    throw new StatelyError("EndOfStream", "unexpected end of stream", Code.Aborted);
   }
   const result = response.value;
   if (result.messageId !== reqMessageId) {
-    throw new Error(
+    throw new StatelyError(
+      "UnexpectedMessageId",
       `unexpected response message ID: wanted ${reqMessageId}, got ${result.messageId}`,
+      Code.Internal,
     );
   }
   const respOpt = result.result;
   if (respOpt === undefined || respOpt.case !== c) {
-    throw new Error(`unexpected response type: ${result.result?.case}, wanted ${c}`);
+    throw new StatelyError(
+      "UnexpectedType",
+      `unexpected response type: ${result.result?.case}, wanted ${c}`,
+      Code.Internal,
+    );
   }
 
   return respOpt.value as OneOfCase<TransactionResponse["result"], K>;
@@ -216,7 +224,11 @@ export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends
     if (this.client.isType(result, itemType)) {
       return result;
     } else if (result) {
-      throw new Error(`Expected item type ${itemType as string}, got ${result.$typeName}`);
+      throw new StatelyError(
+        "ItemTypeMismatch",
+        `Expected item type ${itemType as string}, got ${result.$typeName}`,
+        Code.InvalidArgument,
+      );
     }
     return undefined;
   }

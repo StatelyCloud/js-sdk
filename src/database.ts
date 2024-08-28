@@ -252,18 +252,22 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
     keyPathPrefix: string,
     { limit = 0, sortDirection = SortDirection.SORT_ASCENDING }: ListOptions = {},
   ): ListResult<AnyItem<TypeMap, AllItemTypes>> {
-    const responseStream = this.client.beginList(
-      {
-        storeId: this.storeId,
-        keyPathPrefix,
-        limit,
-        sortProperty: SortableProperty.KEY_PATH,
-        sortDirection,
-        allowStale: this.callOptions.allowStale,
-      },
-      this.connectOptions,
-    );
-    return new ListResult(handleListResponse(this.unmarshal.bind(this), responseStream));
+    try {
+      const responseStream = this.client.beginList(
+        {
+          storeId: this.storeId,
+          keyPathPrefix,
+          limit,
+          sortProperty: SortableProperty.KEY_PATH,
+          sortDirection,
+          allowStale: this.callOptions.allowStale,
+        },
+        this.connectOptions,
+      );
+      return new ListResult(handleListResponse(this.unmarshal.bind(this), responseStream));
+    } catch (e) {
+      throw StatelyError.from(e);
+    }
   }
 
   /**
@@ -299,14 +303,18 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
    * token = listResp.token;
    */
   continueList(tokenData: Uint8Array | ListToken): ListResult<AnyItem<TypeMap, AllItemTypes>> {
-    const responseStream = this.client.continueList(
-      {
-        tokenData: "tokenData" in tokenData ? tokenData.tokenData : tokenData,
-        direction: ContinueListDirection.CONTINUE_LIST_FORWARD,
-      },
-      this.connectOptions,
-    );
-    return new ListResult(handleListResponse(this.unmarshal.bind(this), responseStream));
+    try {
+      const responseStream = this.client.continueList(
+        {
+          tokenData: "tokenData" in tokenData ? tokenData.tokenData : tokenData,
+          direction: ContinueListDirection.CONTINUE_LIST_FORWARD,
+        },
+        this.connectOptions,
+      );
+      return new ListResult(handleListResponse(this.unmarshal.bind(this), responseStream));
+    } catch (e) {
+      throw StatelyError.from(e);
+    }
   }
 
   /**
@@ -355,13 +363,17 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
    * token = listResp.token;
    */
   syncList(tokenData: Uint8Array | ListToken): ListResult<SyncResult<TypeMap, AllItemTypes>> {
-    const responseStream = this.client.syncList(
-      {
-        tokenData: "tokenData" in tokenData ? tokenData.tokenData : tokenData,
-      },
-      this.connectOptions,
-    );
-    return new ListResult(handleSyncListResponse(this.unmarshal.bind(this), responseStream));
+    try {
+      const responseStream = this.client.syncList(
+        {
+          tokenData: "tokenData" in tokenData ? tokenData.tokenData : tokenData,
+        },
+        this.connectOptions,
+      );
+      return new ListResult(handleSyncListResponse(this.unmarshal.bind(this), responseStream));
+    } catch (e) {
+      throw StatelyError.from(e);
+    }
   }
 
   /**
