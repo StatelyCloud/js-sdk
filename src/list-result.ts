@@ -101,6 +101,14 @@ export async function* handleListResponse<
     }
   } catch (e) {
     throw StatelyError.from(e);
+  } finally {
+    try {
+      for await (const _resp of responseStream) {
+        // Draining list response stream
+      }
+    } catch {
+      // Ignore
+    }
   }
   throw new StatelyError("StreamClosed", "unexpected end of list stream", Code.FailedPrecondition);
 }
@@ -115,27 +123,37 @@ export async function* handleSyncListResponse<
   unmarshal: (item: ApiItem) => AnyItem<TypeMap, AllItemTypes>,
   responseStream: AsyncIterable<SyncListResponse>,
 ): AsyncGenerator<SyncResult<TypeMap, AllItemTypes>, ListToken> {
-  for await (const resp of responseStream) {
-    switch (resp.response?.case) {
-      case "reset":
-        yield { type: "reset" };
-        break;
-      case "result": {
-        const v = resp.response.value;
-        for (const item of v.changedItems) {
-          yield { type: "changed", item: unmarshal(item) };
+  try {
+    for await (const resp of responseStream) {
+      switch (resp.response?.case) {
+        case "reset":
+          yield { type: "reset" };
+          break;
+        case "result": {
+          const v = resp.response.value;
+          for (const item of v.changedItems) {
+            yield { type: "changed", item: unmarshal(item) };
+          }
+          for (const item of v.deletedItems) {
+            yield { type: "deleted", keyPath: item.keyPath };
+          }
+          for (const keyPath of v.updatedItemKeysOutsideListWindow) {
+            yield { type: "updatedOutsideWindow", keyPath: keyPath };
+          }
+          break;
         }
-        for (const item of v.deletedItems) {
-          yield { type: "deleted", keyPath: item.keyPath };
-        }
-        for (const keyPath of v.updatedItemKeysOutsideListWindow) {
-          yield { type: "updatedOutsideWindow", keyPath: keyPath };
-        }
-        break;
+        case "finished":
+          return resp.response.value.token!;
+        default:
       }
-      case "finished":
-        return resp.response.value.token!;
-      default:
+    }
+  } finally {
+    try {
+      for await (const _resp of responseStream) {
+        // Draining list response stream
+      }
+    } catch {
+      // Ignore
     }
   }
   throw new StatelyError("EndOfStream", "unexpected end of stream", Code.Aborted);

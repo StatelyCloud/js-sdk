@@ -20,7 +20,7 @@ describe("keyId", () => {
 
   it("should convert a Uint8Array key ID to a string", () => {
     const result = keyId(new Uint8Array([1, 2, 3]));
-    expect(result).toBe("~AQID");
+    expect(result).toBe("AQID");
   });
 });
 
@@ -43,6 +43,6 @@ describe("keyPath", () => {
     const userId = new Uint8Array([1, 2, 3]);
     const postId = new Uint8Array([4, 5, 6]);
     const result = keyPath`/users-${userId}/posts-${postId}`;
-    expect(result).toBe("/users-~AQID/posts-~BAUG");
+    expect(result).toBe("/users-AQID/posts-BAUG");
   });
 });

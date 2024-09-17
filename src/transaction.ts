@@ -1,6 +1,7 @@
-import { create, MessageShape } from "@bufbuild/protobuf";
+import { create, type MessageShape } from "@bufbuild/protobuf";
 import { EmptySchema } from "@bufbuild/protobuf/wkt";
 import { Code } from "@connectrpc/connect";
+import { type WritableIterable } from "@connectrpc/connect/protocol";
 import { ContinueListDirection } from "./api/db/continue_list_pb.js";
 import { GetItemSchema, type GetItem } from "./api/db/get_pb.js";
 import { type Item as ApiItem } from "./api/db/item_pb.js";
@@ -18,62 +19,6 @@ import {
 import { StatelyError } from "./errors.js";
 import { handleListResponse, ListResult } from "./list-result.js";
 import { type AnyItem, type Item, type ItemTypeMap, type ListOptions } from "./types.js";
-
-/**
- * This allows us to queue messages to send to the server. It implements
- * AsyncIteratable so it can be used directly in the transaction method.
- */
-export class BlockingQueue<T> implements AsyncIterator<T>, AsyncIterable<T> {
-  private queue: T[] = [];
-  // eslint-disable-next-line class-methods-use-this, @typescript-eslint/no-empty-function
-  private resolveNext: () => void = () => {};
-  // eslint-disable-next-line class-methods-use-this, @typescript-eslint/no-empty-function
-  private rejectNext: (e: unknown) => void = () => {};
-  private currentPromise: Promise<void> = Promise.resolve();
-
-  push(item: T): void {
-    this.queue.push(item);
-    const resolver = this.resolveNext;
-    this.cyclePromise();
-    resolver();
-  }
-
-  [Symbol.asyncIterator](): AsyncIterator<T> {
-    return this;
-  }
-
-  // Waits until the next result is available (e.g. the next push() call if the queue is empty)
-  async next(): Promise<IteratorResult<T>> {
-    if (this.queue.length > 0) {
-      const value = this.queue.shift()!;
-      return { done: false, value };
-    }
-    await this.currentPromise;
-    if (this.queue.length > 0) {
-      const value = this.queue.shift()!;
-      return { done: false, value };
-    }
-    return { done: true, value: undefined };
-  }
-
-  async close() {
-    this.queue = [];
-    this.resolveNext();
-  }
-
-  private cyclePromise() {
-    this.currentPromise = new Promise((r, e) => {
-      this.resolveNext = r;
-      this.rejectNext = e;
-    });
-  }
-
-  async throw(e?: any): Promise<IteratorResult<T>> {
-    this.queue = [];
-    this.rejectNext(e);
-    return { done: true, value: undefined };
-  }
-}
 
 // Crazy TypeScript helpers for generated unions
 
@@ -147,17 +92,22 @@ export interface TransactionHelperDeps<
 export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends keyof TypeMap> {
   private messageId = 1;
   private client: TransactionHelperDeps<TypeMap, AllItemTypes>;
-  private outgoing: BlockingQueue<TransactionRequest>;
-  resp: AsyncIterator<TransactionResponse> | undefined;
-  responseDone = false;
+  private outgoing: WritableIterable<TransactionRequest>;
+  private incoming: AsyncIterator<TransactionResponse>;
+  private closed = false;
+
+  /** inflight tracks requests that have not yet completed */
+  inflight = new Map<number, string>();
 
   constructor(
     client: TransactionHelperDeps<TypeMap, AllItemTypes>,
-    outgoing: BlockingQueue<TransactionRequest>,
+    outgoing: WritableIterable<TransactionRequest>,
+    incoming: AsyncIterator<TransactionResponse>,
   ) {
     this.outgoing = outgoing;
+    this.incoming = incoming;
     this.client = client;
-    outgoing.push(
+    outgoing.write(
       create(TransactionRequestSchema, {
         messageId: this.nextMessageId(),
         command: {
@@ -336,7 +286,7 @@ export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends
     { limit = 0, sortDirection = SortDirection.SORT_ASCENDING }: ListOptions = {},
   ): ListResult<AnyItem<TypeMap, AllItemTypes>> {
     const reqMessageId = this.nextMessageId();
-    this.outgoing.push(
+    this.outgoing.write(
       create(TransactionRequestSchema, {
         messageId: reqMessageId,
         command: {
@@ -391,7 +341,7 @@ export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends
   continueList(tokenData: Uint8Array | ListToken): ListResult<AnyItem<TypeMap, AllItemTypes>> {
     // TODO: this needs to be streamy
     const reqMessageId = this.nextMessageId();
-    this.outgoing.push(
+    this.outgoing.write(
       create(TransactionRequestSchema, {
         messageId: reqMessageId,
         command: {
@@ -411,7 +361,7 @@ export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends
 
   private async *streamListResponses(reqMessageId: number) {
     while (true) {
-      yield expectResponse(await this.resp!.next(), "listResults", reqMessageId);
+      yield expectResponse(await this.incoming.next(), "listResults", reqMessageId);
     }
   }
 
@@ -423,6 +373,7 @@ export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends
    */
   async commit(): Promise<TransactionResult<TypeMap, AllItemTypes>> {
     const finished = await this.requestResponse("commit", "finished", create(EmptySchema, {}));
+    await this.close();
     return {
       puts: finished.putResults.map((result) => this.client.unmarshal(result)),
       committed: finished.committed,
@@ -436,6 +387,31 @@ export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends
    */
   async abort(): Promise<void> {
     await this.requestResponse("abort", "finished", create(EmptySchema, {}));
+    await this.close();
+  }
+
+  private async close() {
+    if (this.closed) {
+      return;
+    }
+    this.closed = true;
+    // Close the outgoing queue - nothing should be left in it, but this closes
+    // the request stream.
+    this.outgoing.close();
+    try {
+      // Drain the incoming queue to ensure we've read all responses
+      let resp: IteratorResult<TransactionResponse>;
+      do {
+        resp = await this.incoming.next();
+      } while (!resp.done);
+    } catch (e) {
+      // This appears to be a bug in connect, but also we don't care
+      if (e instanceof Error && e.message.includes("Premature close")) {
+        // ignore
+      } else {
+        throw e;
+      }
+    }
   }
 
   /** A helper that sends an input command, then waits for an output result. */
@@ -448,16 +424,21 @@ export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends
     req: OneOfCase<TransactionRequest["command"], In>,
   ): Promise<OneOfCase<TransactionResponse["result"], Out>> {
     const reqMessageId = this.nextMessageId();
-    this.outgoing.push(
-      create(TransactionRequestSchema, {
-        messageId: reqMessageId,
-        command: {
-          case: inCase,
-          value: req,
-        } as OneOfOption<TransactionRequest["command"], In>,
-      }),
-    );
-    return expectResponse(await this.resp!.next(), outCase, reqMessageId);
+    this.inflight.set(reqMessageId, inCase);
+    try {
+      await this.outgoing.write(
+        create(TransactionRequestSchema, {
+          messageId: reqMessageId,
+          command: {
+            case: inCase,
+            value: req,
+          } as OneOfOption<TransactionRequest["command"], In>,
+        }),
+      );
+      return expectResponse(await this.incoming.next(), outCase, reqMessageId);
+    } finally {
+      this.inflight.delete(reqMessageId);
+    }
   }
 
   /** A helper that only sends an input command, without expecting any output result. */
@@ -465,15 +446,21 @@ export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends
     inCase: In,
     req: OneOfCase<TransactionRequest["command"], In>,
   ): Promise<void> {
-    this.outgoing.push(
-      create(TransactionRequestSchema, {
-        messageId: this.nextMessageId(),
-        command: {
-          case: inCase,
-          value: req,
-        } as OneOfOption<TransactionRequest["command"], In>,
-      }),
-    );
+    const reqMessageId = this.nextMessageId();
+    this.inflight.set(reqMessageId, inCase);
+    try {
+      await this.outgoing.write(
+        create(TransactionRequestSchema, {
+          messageId: reqMessageId,
+          command: {
+            case: inCase,
+            value: req,
+          } as OneOfOption<TransactionRequest["command"], In>,
+        }),
+      );
+    } finally {
+      this.inflight.delete(reqMessageId);
+    }
   }
 }
 

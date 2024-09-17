@@ -11,6 +11,7 @@ import {
   ConnectError,
   type PromiseClient,
 } from "@connectrpc/connect";
+import { createWritableIterable } from "@connectrpc/connect/protocol";
 import { ContinueListDirection } from "./api/db/continue_list_pb.js";
 import { type Item as ApiItem, ItemSchema } from "./api/db/item_pb.js";
 import { SortableProperty } from "./api/db/item_property_pb.js";
@@ -25,12 +26,7 @@ import {
   ListResult,
   type SyncResult,
 } from "./list-result.js";
-import {
-  BlockingQueue,
-  type Transaction,
-  TransactionHelper,
-  type TransactionResult,
-} from "./transaction.js";
+import { type Transaction, TransactionHelper, type TransactionResult } from "./transaction.js";
 import {
   type AnyItem,
   type CallOptions,
@@ -403,7 +399,8 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
   async transaction(
     handler: (txnClient: Transaction<TypeMap, AllItemTypes>) => Promise<void>,
   ): Promise<TransactionResult<TypeMap, AllItemTypes>> {
-    const outgoing = new BlockingQueue<TransactionRequest>();
+    const outgoing = createWritableIterable<TransactionRequest>();
+    const respIterable = this.client.transaction(outgoing, this.connectOptions);
     const txnClient = new TransactionHelper(
       {
         storeId: this.storeId,
@@ -412,21 +409,23 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
         isType: this.isType.bind(this),
       },
       outgoing,
+      respIterable[Symbol.asyncIterator](),
     );
-    const abortController = new AbortController();
-    if (this.callOptions?.signal) {
-      this.callOptions.signal.addEventListener("abort", () => {
-        abortController.abort("parent abort");
-      });
-    }
-    const respIterable = this.client.transaction(outgoing, {
-      ...this.connectOptions,
-      signal: abortController.signal,
-    });
-    txnClient.resp = respIterable[Symbol.asyncIterator]();
     try {
       await handler(txnClient);
-      // Close the outgoing queue - nothing should be left in it, but this unlocks the req generator to do its commit.
+
+      if (txnClient.inflight.size > 0) {
+        const inflightRequests = Array.from(
+          txnClient.inflight.entries(),
+          ([msgId, command]) => `Request #${msgId - 1}: ${command}`,
+        ).join(", ");
+        throw new StatelyError(
+          "InflightTransactionRequests",
+          `Transaction still has inflight requests. Make sure you await all requests within the transaction function. Inflight requests: [${inflightRequests}]`,
+          Code.FailedPrecondition,
+        );
+      }
+
       return await txnClient.commit();
     } catch (e) {
       if (!(e instanceof ConnectError)) {
@@ -437,25 +436,6 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
         }
       }
       throw StatelyError.from(e);
-    } finally {
-      // // Drain the response if there is one (there shouldn't be...)
-      // let remainingResp: IteratorResult<TransactionResponse>;
-      // do {
-      //   remainingResp = await txnClient.resp.next();
-      // } while (!remainingResp.done);
-      await outgoing.close();
-      // TODO: This is an awful hack to handle the fact that Connect-es doesn't
-      // seem to handle aborting the stream properly, and will just hang forever.
-      abortController.abort("finish up");
-      try {
-        await txnClient.resp.next();
-      } catch (e) {
-        if (!(e instanceof ConnectError && e.message.includes("finish up"))) {
-          // TODO: We shouldn't throw here but I wanna know if it happens
-          // eslint-disable-next-line no-unsafe-finally
-          throw e;
-        }
-      }
     }
 
     // TODO: in the future we could auto-retry transactions that fail due to conflicts

@@ -11,7 +11,7 @@ export type KeyIDInput = string | number | bigint | Uint8Array;
  * keyId("123"); // "123"
  * keyId(123); // "123"
  * keyId(BigInt(123)); // "123"
- * keyId(new Uint8Array([1, 2, 3])); // "~AQID"
+ * keyId(new Uint8Array([1, 2, 3])); // "AQID"
  */
 export function keyId(input: KeyIDInput): string {
   if (typeof input === "string") {
@@ -31,7 +31,7 @@ export function keyId(input: KeyIDInput): string {
     return input.toString();
   }
   if (input instanceof Uint8Array) {
-    return `~${bytesToBase64(input)}`;
+    return `${bytesToBase64(input)}`;
   }
   throw new StatelyError(
     "InvalidKeyId",
