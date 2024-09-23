@@ -68,8 +68,7 @@ export class StatelyError extends Error {
     }
     const connectError = ConnectError.from(e);
 
-    const details =
-      connectError.findDetails<typeof StatelyErrorDetailsSchema>(StatelyErrorDetailsSchema);
+    const details = connectError.findDetails(StatelyErrorDetailsSchema);
     const requestId = connectError.metadata.get("st-rid") ?? undefined;
 
     if (details && details.length > 0) {

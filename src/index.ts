@@ -1,5 +1,4 @@
 import { DatabaseService } from "./api/db/service_pb.js";
-import { initServerAuth } from "./auth.js";
 import { DatabaseClient } from "./database.js";
 import { createNodeClient } from "./node.js";
 import { type ClientOptions, type ItemTypeMap, type StoreID } from "./types.js";
@@ -36,18 +35,15 @@ export type * from "./types.js";
  * @param options - Options for the client, like the auth token provider and
  * endpoint.s
  * @example
- * const client = createClient(1221515n, itemTypeMap);
+ * const client = createClient(1221515n, itemTypeMap, { region: "us-west-2" });
  * const item = await client.get("/jedi-luke/equipment-lightsaber");
  * const orderItems = await client.withStoreId(6545212412n).beginList("/orders-454/items").items;
  */
 export function createClient<TypeMap extends ItemTypeMap, AllItemTypes extends keyof TypeMap>(
   storeId: StoreID,
   itemTypeMap: TypeMap,
-  {
-    authTokenProvider = initServerAuth(),
-    endpoint = "https://api.stately.cloud",
-  }: ClientOptions = {},
+  opts: ClientOptions = {},
 ): DatabaseClient<TypeMap, AllItemTypes> {
-  const clientFactory = createNodeClient({ authTokenProvider, endpoint });
+  const clientFactory = createNodeClient(opts);
   return new DatabaseClient(clientFactory(DatabaseService), storeId, itemTypeMap);
 }

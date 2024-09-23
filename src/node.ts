@@ -1,4 +1,4 @@
-import { Code, createPromiseClient, type Interceptor } from "@connectrpc/connect";
+import { Code, createClient, type Interceptor } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-node";
 import { initServerAuth } from "./auth.js";
 import { StatelyError } from "./errors.js";
@@ -14,7 +14,8 @@ import type { ClientFactory, ClientOptions } from "./types.js";
  */
 export function createNodeClient({
   authTokenProvider = initServerAuth(),
-  endpoint = "https://api.stately.cloud",
+  endpoint,
+  region,
 }: ClientOptions = {}): ClientFactory {
   if (!("Headers" in global)) {
     throw new StatelyError(
@@ -46,10 +47,23 @@ export function createNodeClient({
   ];
 
   const transport = createConnectTransport({
-    baseUrl: endpoint,
+    baseUrl: makeEndpoint(endpoint, region),
     httpVersion: "2",
     interceptors,
   });
 
-  return (definition) => createPromiseClient(definition, transport);
+  return (definition) => createClient(definition, transport);
+}
+
+export function makeEndpoint(endpoint: string | undefined, region: string | undefined): string {
+  if (endpoint) {
+    return endpoint;
+  }
+  if (!region) {
+    return "https://api.stately.cloud";
+  }
+  if (region.startsWith("aws-")) {
+    region = region.slice(4);
+  }
+  return `https://${region}.aws.api.stately.cloud`;
 }

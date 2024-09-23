@@ -1,5 +1,5 @@
 import type { DescMessage, DescService, MessageShape } from "@bufbuild/protobuf";
-import type { PromiseClient } from "@connectrpc/connect";
+import { Client } from "@connectrpc/connect";
 import type { SortDirection } from "./api/db/list_pb.js";
 
 // typed IDs
@@ -56,6 +56,12 @@ export interface ClientOptions {
   endpoint?: string;
 
   /**
+   * The region to use for the Stately Cloud API. If not set, this will use a
+   * default region. You should set this if your store is regional.
+   */
+  region?: string;
+
+  /**
    * An async function that returns the auth token to use for requests. We
    * provide some common implementations of this, but you may want to provide
    * your own.
@@ -67,9 +73,7 @@ export interface ClientOptions {
  * A factory function for creating Connect clients that talk to Stately
  * services.
  */
-export type ClientFactory = <Service extends DescService>(
-  definition: Service,
-) => PromiseClient<Service>;
+export type ClientFactory = <Service extends DescService>(definition: Service) => Client<Service>;
 
 /**
  * Item represents an item that can be stored in the database. Item types are

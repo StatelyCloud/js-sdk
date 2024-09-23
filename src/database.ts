@@ -6,10 +6,10 @@ import {
   toBinary,
 } from "@bufbuild/protobuf";
 import {
+  type Client,
   Code,
   type CallOptions as ConnectCallOptions,
   ConnectError,
-  type PromiseClient,
 } from "@connectrpc/connect";
 import { createWritableIterable } from "@connectrpc/connect/protocol";
 import { ContinueListDirection } from "./api/db/continue_list_pb.js";
@@ -48,12 +48,12 @@ function checkStoreId(storeId: StoreID): StoreID {
 
 export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends keyof TypeMap> {
   private readonly callOptions: Readonly<CallOptions>;
-  private readonly client: PromiseClient<typeof DatabaseService>;
+  private readonly client: Client<typeof DatabaseService>;
   private readonly storeId: StoreID;
   private readonly typeMap: TypeMap;
 
   constructor(
-    client: PromiseClient<typeof DatabaseService>,
+    client: Client<typeof DatabaseService>,
     storeId: StoreID,
     typeMap: TypeMap,
     callOptions: CallOptions = {},
