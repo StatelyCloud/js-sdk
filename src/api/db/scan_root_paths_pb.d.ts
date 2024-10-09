@@ -37,6 +37,13 @@ export declare type ScanRootPathsRequest = Message<"stately.db.ScanRootPathsRequ
    * @generated from field: bytes pagination_token = 3;
    */
   paginationToken: Uint8Array;
+
+  /**
+   * schema_version_id is the version of the schema to base all queries on.
+   *
+   * @generated from field: uint32 schema_version_id = 4;
+   */
+  schemaVersionId: number;
 };
 
 /**

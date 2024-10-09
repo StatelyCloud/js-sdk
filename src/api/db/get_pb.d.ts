@@ -24,7 +24,7 @@ export declare type GetRequest = Message<"stately.db.GetRequest"> & {
   storeId: bigint;
 
   /**
-   * gets is one or more requests to get an item its key path.
+   * gets is up to 100 requests to get an item by its key path.
    *
    * @generated from field: repeated stately.db.GetItem gets = 2;
    */
@@ -41,19 +41,16 @@ export declare type GetRequest = Message<"stately.db.GetRequest"> & {
   allowStale: boolean;
 
   /**
-   * schema_hash refers to the item version to return.
+   * schema_version_id refers to the item version to return.
    *
-   * If the store's schema does not have a version with this hash, the operation
-   * will error with SchemaHashNotFound error. You should not have to
-   * set this manually as your generated SDK should know its schema hash
+   * If the store's schema does not have a version with this version, the operation
+   * will error with SchemaVersionNotFound error. You should not have to
+   * set this manually as your generated SDK should know its schema version
    * and wire this in for you.
    *
-   * TODO add a note about how to look this up in the SDK or print it out via
-   * the CLI.
-   *
-   * @generated from field: fixed64 schema_hash = 5;
+   * @generated from field: uint32 schema_version_id = 5;
    */
-  schemaHash: bigint;
+  schemaVersionId: number;
 };
 
 /**

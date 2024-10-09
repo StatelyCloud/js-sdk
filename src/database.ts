@@ -120,14 +120,14 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
   }
 
   /**
-   * getBatch retrieves a set of items by their full key paths. This will return
+   * getBatch retrieves up to 100 items by their full key paths. This will return
    * the corresponding items that exist. It will fail if the caller does not
    * have permission to read Items. Use BeginList if you want to retrieve
    * multiple items but don't already know the full key paths of the items you
    * want to get. You can get items of different types in a single getBatch -
    * you will need to use `DatabaseClient.isType` to determine what item type
    * each item is.
-   * @param keyPaths - The full key path of each item to load.
+   * @param keyPaths - The full key path of each item to load. Max 100 key paths.
    * @example
    * const [firstItem, secondItem] = await client.getBatch("/jedi-luke/equipment-lightsaber", "/jedi-luke/equipment-cloak");
    * if (client.isType(firstItem, "Equipment")) {
@@ -166,12 +166,12 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
   }
 
   /**
-   * putBatch adds Items to the Store, or replaces Items if they already exist
-   * at that path. This will fail if the caller does not have permission to
-   * create Items. Data can be provided as either JSON, or as a proto encoded by
-   * a previously agreed upon schema, or by some combination of the two. You can
-   * put items of different types in a single putBatch.
-   * @param items - Items from your generated schema.
+   * putBatch adds up to 50 Items to the Store, or replaces Items if they
+   * already exist at that path. This will fail if the caller does not have
+   * permission to create Items. Data can be provided as either JSON, or as a
+   * proto encoded by a previously agreed upon schema, or by some combination of
+   * the two. You can put items of different types in a single putBatch.
+   * @param items - Items from your generated schema. Max 50 items.
    * @returns The items that were put, with any server-generated fields filled
    * in. They are returned in the same order they were provided.
    * @example
@@ -196,9 +196,9 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
   }
 
   /**
-   * del removes one or more Items from the Store by their full key paths. This
+   * del removes up to 50 Items from the Store by their full key paths. This
    * will fail if the caller does not have permission to delete Items.
-   * @param keyPaths - The full key paths of the items.
+   * @param keyPaths - The full key paths of the items. Max 50 key paths.
    * @example
    * await client.del("/jedi-luke/equipment-lightsaber", "/jedi-luke/equipment-cloak");
    */
@@ -520,7 +520,19 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
     }
     switch (item.payload.case) {
       case "proto":
-        return fromBinary(protoSchema, item.payload.value) as AnyItem<TypeMap, AllItemTypes>;
+        try {
+          return fromBinary(protoSchema, item.payload.value) as AnyItem<TypeMap, AllItemTypes>;
+        } catch (e) {
+          if (e instanceof Error) {
+            throw new StatelyError(
+              "UnmarshalFailure",
+              `Failed to unmarshal item type ${item.itemType}: ${e.message}`,
+              Code.InvalidArgument,
+              e,
+            );
+          }
+          throw e;
+        }
       default:
         throw new StatelyError("Internal", `${item.payload.case} responses are not supported`);
     }
@@ -545,13 +557,25 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
       );
     }
     const [itemType, protoSchema] = pair;
-    return create(ItemSchema, {
-      itemType,
-      payload: {
-        case: "proto",
-        value: toBinary(protoSchema, item),
-      },
-    });
+    try {
+      return create(ItemSchema, {
+        itemType,
+        payload: {
+          case: "proto",
+          value: toBinary(protoSchema, item),
+        },
+      });
+    } catch (e) {
+      if (e instanceof Error) {
+        throw new StatelyError(
+          "MarshalFailure",
+          `Failed to marshal item type ${itemType}: ${e.message}`,
+          Code.InvalidArgument,
+          e,
+        );
+      }
+      throw e;
+    }
   }
 
   private get connectOptions(): ConnectCallOptions {

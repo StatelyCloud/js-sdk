@@ -126,14 +126,14 @@ export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends
   }
 
   /**
-   * getBatch retrieves a set of items by their full key paths. This will return
+   * getBatch retrieves up to 100 items by their full key paths. This will return
    * the corresponding items that exist. It will fail if the caller does not
    * have permission to read Items. Use BeginList if you want to retrieve
    * multiple items but don't already know the full key paths of the items you
    * want to get. You can get items of different types in a single getBatch -
    * you will need to use `DatabaseClient.isItemOfType` to determine what item
    * type each item is.
-   * @param keyPaths - The full key path of each item to load.
+   * @param keyPaths - The full key path of each item to load. Max 100 key paths.
    * @example
    * const [firstItem, secondItem] = await txn.getBatch("/jedi-luke/equipment-lightsaber", "/jedi-luke/equipment-cloak");
    * if (client.isItemOfType(firstItem, "Equipment")) {
@@ -184,14 +184,14 @@ export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends
   }
 
   /**
-   * putBatch adds Items to the Store, or replaces Items if they already exist
+   * putBatch adds up to 50 Items to the Store, or replaces Items if they already exist
    * at that path. This will fail if the caller does not have permission to
    * create Items. Data can be provided as either JSON, or as a proto encoded by
    * a previously agreed upon schema, or by some combination of the two. You can
    * put items of different types in a single putBatch. Puts will not be
    * acknowledged until the transaction is committed - the TransactionResult
    * will contain the updated metadata for each item.
-   * @param items - Items from your generated schema.
+   * @param items - Items from your generated schema. Max 50 items.
    * @returns An array of generated IDs for each item, if that item had an ID
    * generated for its "initialValue" field. Otherwise the value is undefined.
    * These are returned in the same order as the input items. This value can be
@@ -236,9 +236,9 @@ export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends
   }
 
   /**
-   * del removes one or more Items from the Store by their full key paths. This
+   * del removes up to 50 Items from the Store by their full key paths. This
    * will fail if the caller does not have permission to delete Items.
-   * @param keyPaths - The full key paths of the items.
+   * @param keyPaths - The full key paths of the items. Max 50 key paths.
    * @example
    * await txn.del("/jedi-luke/equipment-lightsaber", "/jedi-luke/equipment-cloak");
    */

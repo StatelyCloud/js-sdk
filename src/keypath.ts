@@ -31,7 +31,7 @@ export function keyId(input: KeyIDInput): string {
     return input.toString();
   }
   if (input instanceof Uint8Array) {
-    return `${bytesToBase64(input)}`;
+    return bytesToBase64(input);
   }
   throw new StatelyError(
     "InvalidKeyId",

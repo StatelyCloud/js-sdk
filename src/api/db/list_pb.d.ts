@@ -70,19 +70,16 @@ export declare type BeginListRequest = Message<"stately.db.BeginListRequest"> & 
   sortDirection: SortDirection;
 
   /**
-   * schema_hash refers to the item version to return.
+   * schema_version_id refers to the item version to return.
    *
-   * If the store's schema does not have a version with this hash, the operation
-   * will error with SchemaHashNotFound error. You should not have to
-   * set this manually as your generated SDK should know its schema hash
+   * If the store's schema does not have this version, the operation
+   * will error with SchemaVersionNotFound error. You should not have to
+   * set this manually as your generated SDK should know its schema version
    * and wire this in for you.
    *
-   * TODO add a note about how to look this up in the SDK or print it out via
-   * the CLI.
-   *
-   * @generated from field: fixed64 schema_hash = 7;
+   * @generated from field: uint32 schema_version_id = 7;
    */
-  schemaHash: bigint;
+  schemaVersionId: number;
 };
 
 /**

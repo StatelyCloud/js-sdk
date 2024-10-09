@@ -24,11 +24,23 @@ export declare type PutRequest = Message<"stately.db.PutRequest"> & {
   storeId: bigint;
 
   /**
-   * puts is one or more items to be put into the Store.
+   * puts is up to 50 items to be put into the Store.
    *
    * @generated from field: repeated stately.db.PutItem puts = 2;
    */
   puts: PutItem[];
+
+  /**
+   * schema_version_id refers to the item version to return.
+   *
+   * If the store's schema does not have this version, the operation will error
+   * with SchemaVersionNotFound error. You should not have to set this manually
+   * as your generated SDK should know its schema version and wire this in for
+   * you.
+   *
+   * @generated from field: uint32 schema_version_id = 3;
+   */
+  schemaVersionId: number;
 };
 
 /**
@@ -47,21 +59,6 @@ export declare type PutItem = Message<"stately.db.PutItem"> & {
    * @generated from field: stately.db.Item item = 1;
    */
   item?: Item;
-
-  /**
-   * schema_hash refers to  the item version to return.
-   *
-   * If the store's schema does not have a version with this hash, the operation
-   * will error with SchemaHashNotFound error. You should not have to
-   * set this manually as your generated SDK should know its schema hash
-   * and wire this in for you.
-   *
-   * TODO add a note about how to look this up in the SDK or print it out via
-   * the CLI.
-   *
-   * @generated from field: fixed64 schema_hash = 2;
-   */
-  schemaHash: bigint;
 };
 
 /**

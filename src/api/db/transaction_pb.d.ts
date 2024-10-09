@@ -218,23 +218,20 @@ export declare type TransactionBegin = Message<"stately.db.TransactionBegin"> & 
   storeId: bigint;
 
   /**
-   * schema_hash refers to the item version to base this txn from. All items
+   * schema_version_id refers to the item version to base this txn from. All items
    * created or modified in this transaction will be based on this schema
    * version.
    *
-   * If the store's schema does not have a version with this hash, the operation
-   * will error with SchemaHashNotFound error. You should not have to
-   * set this manually as your generated SDK should know its schema hash
+   * If the store's schema does not have this version, the operation
+   * will error with SchemaVersionNotFound error. You should not have to
+   * set this manually as your generated SDK should know its schema version
    * and wire this in for you.
-   *
-   * TODO add a note about how to look this up in the SDK or print it out via
-   * the CLI.
    *
    * TODO: Accept a list token, so that we can save an extra sync with the new items.
    *
-   * @generated from field: fixed64 schema_hash = 2;
+   * @generated from field: uint32 schema_version_id = 2;
    */
-  schemaHash: bigint;
+  schemaVersionId: number;
 };
 
 /**
@@ -251,7 +248,7 @@ export declare const TransactionBeginSchema: GenMessage<TransactionBegin>;
  */
 export declare type TransactionGet = Message<"stately.db.TransactionGet"> & {
   /**
-   * gets is one or more requests to get an item its key path.
+   * gets is up to 100 requests to get an item its key path.
    *
    * @generated from field: repeated stately.db.GetItem gets = 1;
    */
@@ -349,7 +346,7 @@ export declare const TransactionContinueListSchema: GenMessage<TransactionContin
  */
 export declare type TransactionPut = Message<"stately.db.TransactionPut"> & {
   /**
-   * puts is one or more items to be put into the Store.
+   * puts is up to 50 items to be put into the Store.
    *
    * @generated from field: repeated stately.db.PutItem puts = 1;
    */
@@ -371,7 +368,7 @@ export declare const TransactionPutSchema: GenMessage<TransactionPut>;
  */
 export declare type TransactionDelete = Message<"stately.db.TransactionDelete"> & {
   /**
-   * deletes is one or more items to be deleted from the Group.
+   * deletes is up to 50 to be deleted from the Group.
    *
    * @generated from field: repeated stately.db.DeleteItem deletes = 1;
    */
