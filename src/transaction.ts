@@ -18,7 +18,14 @@ import {
 } from "./api/db/transaction_pb.js";
 import { StatelyError } from "./errors.js";
 import { handleListResponse, ListResult } from "./list-result.js";
-import { type AnyItem, type Item, type ItemTypeMap, type ListOptions } from "./types.js";
+import {
+  SchemaVersionID,
+  StoreID,
+  type AnyItem,
+  type Item,
+  type ItemTypeMap,
+  type ListOptions,
+} from "./types.js";
 
 // Crazy TypeScript helpers for generated unions
 
@@ -76,7 +83,8 @@ export interface TransactionHelperDeps<
   TypeMap extends ItemTypeMap,
   AllItemTypes extends keyof TypeMap,
 > {
-  storeId: bigint;
+  storeId: StoreID;
+  schemaVersionId: SchemaVersionID;
   unmarshal: (item: ApiItem) => AnyItem<TypeMap, AllItemTypes>;
   marshal: (item: AnyItem<TypeMap, AllItemTypes>) => ApiItem;
   isType: <T extends keyof TypeMap>(
@@ -114,6 +122,7 @@ export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends
           case: "begin",
           value: {
             storeId: client.storeId,
+            schemaVersionId: client.schemaVersionId,
           },
         },
       }),

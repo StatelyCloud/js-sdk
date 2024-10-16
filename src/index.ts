@@ -32,6 +32,9 @@ export type * from "./types.js";
  * @param itemTypeMap - The item type map for this client, which maps item type
  * names to their protobuf definitions. This comes from the generated schema
  * package.
+ * @param schemaVersionID - The schema version ID that was used to generate the
+ * itemTypeMap. This is used to ensure that the schema used by the client
+ * matches the schema used by the server.
  * @param options - Options for the client, like the auth token provider and
  * endpoint.s
  * @example
@@ -42,8 +45,9 @@ export type * from "./types.js";
 export function createClient<TypeMap extends ItemTypeMap, AllItemTypes extends keyof TypeMap>(
   storeId: StoreID,
   itemTypeMap: TypeMap,
+  schemaVersionID: number,
   opts: ClientOptions = {},
 ): DatabaseClient<TypeMap, AllItemTypes> {
   const clientFactory = createNodeClient(opts);
-  return new DatabaseClient(clientFactory(DatabaseService), storeId, itemTypeMap);
+  return new DatabaseClient(clientFactory(DatabaseService), storeId, itemTypeMap, schemaVersionID);
 }

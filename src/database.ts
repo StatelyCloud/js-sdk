@@ -33,6 +33,7 @@ import {
   type Item,
   type ItemTypeMap,
   type ListOptions,
+  type SchemaVersionID,
   type StoreID,
 } from "./types.js";
 
@@ -51,16 +52,19 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
   private readonly client: Client<typeof DatabaseService>;
   private readonly storeId: StoreID;
   private readonly typeMap: TypeMap;
+  private readonly schemaVersionID: SchemaVersionID;
 
   constructor(
     client: Client<typeof DatabaseService>,
     storeId: StoreID,
     typeMap: TypeMap,
+    schemaVersionID: SchemaVersionID,
     callOptions: CallOptions = {},
   ) {
     this.storeId = checkStoreId(storeId);
     this.client = client;
     this.typeMap = typeMap;
+    this.schemaVersionID = schemaVersionID;
     this.callOptions = callOptions;
   }
 
@@ -143,6 +147,7 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
             keyPath,
           })),
           allowStale: this.callOptions.allowStale,
+          schemaVersionId: this.schemaVersionID,
         },
         this.connectOptions,
       ),
@@ -188,6 +193,7 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
           puts: items.map((data) => ({
             item: this.marshal(data),
           })),
+          schemaVersionId: this.schemaVersionID,
         },
         this.connectOptions,
       ),
@@ -210,6 +216,7 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
           deletes: keyPaths.map((keyPath) => ({
             keyPath,
           })),
+          schemaVersionId: this.schemaVersionID,
         },
         this.connectOptions,
       ),
@@ -257,6 +264,7 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
           sortProperty: SortableProperty.KEY_PATH,
           sortDirection,
           allowStale: this.callOptions.allowStale,
+          schemaVersionId: this.schemaVersionID,
         },
         this.connectOptions,
       );
@@ -404,6 +412,7 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
     const txnClient = new TransactionHelper(
       {
         storeId: this.storeId,
+        schemaVersionId: this.schemaVersionID,
         unmarshal: this.unmarshal.bind(this),
         marshal: this.marshal.bind(this),
         isType: this.isType.bind(this),
@@ -455,7 +464,7 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
    * const item = await client.withAbortSignal(signal).get("/jedi-luke/equipment-lightsaber");
    */
   withAbortSignal(signal: AbortSignal): DatabaseClient<TypeMap, AllItemTypes> {
-    return new DatabaseClient(this.client, this.storeId, this.typeMap, {
+    return new DatabaseClient(this.client, this.storeId, this.typeMap, this.schemaVersionID, {
       ...this.callOptions,
       signal,
     });
@@ -472,7 +481,7 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
    * const item = await client.withTimeoutMs(1000).get("/jedi-luke/equipment-lightsaber");
    */
   withTimeoutMs(timeoutMs: number): DatabaseClient<TypeMap, AllItemTypes> {
-    return new DatabaseClient(this.client, this.storeId, this.typeMap, {
+    return new DatabaseClient(this.client, this.storeId, this.typeMap, this.schemaVersionID, {
       ...this.callOptions,
       timeoutMs,
     });
@@ -487,7 +496,7 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
    * const item = await client.withDeadline(new Date(Date.now() + 1000)).get("/jedi-luke/equipment-lightsaber");
    */
   withDeadline(deadline: Date): DatabaseClient<TypeMap, AllItemTypes> {
-    return new DatabaseClient(this.client, this.storeId, this.typeMap, {
+    return new DatabaseClient(this.client, this.storeId, this.typeMap, this.schemaVersionID, {
       ...this.callOptions,
       deadline,
     });
@@ -503,7 +512,7 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
    * const item = await client.withAllowStale().get("/jedi-luke/equipment-lightsaber");
    */
   withAllowStale(allowStale = true): DatabaseClient<TypeMap, AllItemTypes> {
-    return new DatabaseClient(this.client, this.storeId, this.typeMap, {
+    return new DatabaseClient(this.client, this.storeId, this.typeMap, this.schemaVersionID, {
       ...this.callOptions,
       allowStale,
     });

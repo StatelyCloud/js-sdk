@@ -4,6 +4,7 @@ import type { SortDirection } from "./api/db/list_pb.js";
 
 // typed IDs
 export type StoreID = bigint;
+export type SchemaVersionID = number;
 export type AuthTokenProvider = () => Promise<string>;
 
 // TODO: RetryOptions with max retries, backoff params, and per-call timeout
