@@ -1,6 +1,6 @@
 {
   "name": "@stately-cloud/client",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "author": "Stately Cloud <support@stately.cloud> (https://stately.cloud/)",
   "description": "JavaScript client for StatelyDB API",
   "types": "dist/index.d.ts",
@@ -25,6 +25,7 @@
   "publishConfig": {
     "access": "public"
   },
+  "sideEffects": false,
   "scripts": {
     "build": "mkdir -p dist && cp -r src/api dist && tsc -p tsconfig-build.json",
     "fix": "pnpm run \"/^fix:.*/\"",
