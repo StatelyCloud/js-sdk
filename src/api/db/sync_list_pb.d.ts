@@ -118,13 +118,9 @@ export declare type SyncListPartialResponse = Message<"stately.db.SyncListPartia
   deletedItems: DeletedItem[];
 
   /**
-   * Items that were changed but which do not currently use the CustomSortProperty
-   * that the list window is based on. This can only be populated when using a
-   * CustomSortProperty (in the original BeginList request).
-   * It may be that these items have never been in the CustomSortProperty,
-   * or that they were in the CustomSortProperty at some point in time but are not now,
-   * or that they are in the CustomSortProperty but have moved position and are no longer
-   * in the sync able window identified by a token.
+   * Keys of items that were updated but Stately cannot tell if they were in the
+   * sync window. Treat these as deleted in most cases. For more information
+   * see: https://docs.stately.cloud/api/sync
    *
    * @generated from field: repeated string updated_item_keys_outside_list_window = 3;
    */
