@@ -1,5 +1,5 @@
 import type { DescMessage, DescService, MessageShape } from "@bufbuild/protobuf";
-import { Client } from "@connectrpc/connect";
+import type { Client } from "@connectrpc/connect";
 import type { SortDirection } from "./api/db/list_pb.js";
 
 // typed IDs

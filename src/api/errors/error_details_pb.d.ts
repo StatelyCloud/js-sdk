@@ -23,8 +23,8 @@ export declare const file_errors_error_details: GenFile;
 export declare type StatelyErrorDetails = Message<"stately.errors.StatelyErrorDetails"> & {
   /**
    * stately_code is the error code that was returned by the Stately API.
-   * The full list of codes is available at https://docs.stately.cloud/codes
-   * and documentation on a specific code can be found at https://docs.stately.cloud/codes#{stately_code}
+   * The full list of codes is available at https://docs.stately.cloud/api/error-codes/
+   * and documentation on a specific code can be found at https://docs.stately.cloud/api/error-codes/#{stately_code}
    *
    * @generated from field: string stately_code = 1;
    */
