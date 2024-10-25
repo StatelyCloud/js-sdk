@@ -46,6 +46,16 @@ export declare type StatelyErrorDetails = Message<"stately.errors.StatelyErrorDe
    * @generated from field: string upstream_cause = 3;
    */
   upstreamCause: string;
+
+  /**
+   * The Connect/gRPC code associated with this error. This generally isn't set,
+   * because the overall API response has an error code. But this can be used in
+   * the case that we're returning multiple different errors, or communicating
+   * errors across non-Connect APIs.
+   *
+   * @generated from field: uint32 code = 4;
+   */
+  code: number;
 };
 
 /**

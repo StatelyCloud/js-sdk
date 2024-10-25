@@ -30,11 +30,7 @@ export class StatelyError extends Error {
   override name = "StatelyError";
 
   /**
-   * Create a new ConnectError.
-   * If no code is provided, code "unknown" is used.
-   * Outgoing details are only relevant for the server side - a service may
-   * raise an error with details, and it is up to the protocol implementation
-   * to encode and send the details along with error.
+   * Create a new StatelyError. If no code is provided, code "unknown" is used.
    */
   constructor(
     statelyCode: string,

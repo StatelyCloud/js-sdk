@@ -263,13 +263,13 @@ export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends
   }
 
   /**
-   * beginList loads Items that start with a specified key path, subject to
-   * additional filtering. The prefix must minimally contain a Group Key (an
-   * item type and an item ID). beginList will return an empty result set if
-   * there are no items matching that key prefix. A token is returned from this
-   * API that you can then pass to continueList to expand the result set, or to
-   * syncList to get updates within the result set. This can fail if the caller
-   * does not have permission to read Items.
+   * beginList retrieves Items that start with a specified keyPathPrefix. The
+   * key path prefix must minimally contain a Group Key (a single key segment
+   * with a namespace and an ID). BeginList will return an empty result set if
+   * there are no items matching that key prefix. This API returns a token that
+   * you can pass to ContinueList to expand the result set, or to SyncList to
+   * get updates within the result set. This can fail if the caller does not
+   * have permission to read Items.
    *
    * beginList streams results via an AsyncGenerator, allowing you to handle
    * results as they arrive. You can call `collect()` on it to get all the
