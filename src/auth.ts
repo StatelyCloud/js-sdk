@@ -70,9 +70,14 @@ environment variables are set, or pass in the client ID and secret explicitly: c
       expires_in: number;
     };
 
+    // Calculate a random multiplier between 0.3 and 0.8 to to apply to the expiry
+    // so that we refresh in the background ahead of expiration, but avoid
+    // multiple processes hammering the service at the same time.
+    const jitter = Math.random() * 0.5 + 0.3;
+
     // set a timeout to refresh the token in the background
     // 5-15 sec before it's due to expire.
-    refreshTimeout = setTimeout(refresh, expires_in * 1000 - 5000 - 10_000 * Math.random());
+    refreshTimeout = setTimeout(refresh, expires_in * jitter);
 
     accessToken = access_token;
     return accessToken;
