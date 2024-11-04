@@ -35,6 +35,8 @@ export function initServerAuth({
   abortSignal?: AbortSignal;
 } = {}): AuthTokenProvider {
   let accessToken: string | undefined;
+  // The time at which the current token expires, in milliseconds since epoch
+  let expiresAt = 0;
   let refreshTimeout: NodeJS.Timeout | number | undefined;
 
   // this also fails if either are an empty string
@@ -48,44 +50,56 @@ environment variables are set, or pass in the client ID and secret explicitly: c
     );
   }
 
+  const validAccessToken = () => (accessToken && Date.now() < expiresAt ? accessToken : undefined);
+
   const refresh = dedupePromise(async function refresh(): Promise<string> {
     abortSignal?.throwIfAborted();
 
-    const resp = await fetch(`${authDomain}/oauth/token`, {
-      method: "POST",
-      cache: "no-store",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        client_id: clientID,
-        client_secret: clientSecret,
-        audience,
-        grant_type: DEFAULT_GRANT_TYPE,
-      }),
-    });
+    let refreshed = false;
+    while (!accessToken || !refreshed) {
+      try {
+        const resp = await fetch(`${authDomain}/oauth/token`, {
+          method: "POST",
+          cache: "no-store",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            client_id: clientID,
+            client_secret: clientSecret,
+            audience,
+            grant_type: DEFAULT_GRANT_TYPE,
+          }),
+        });
 
-    const { access_token, expires_in } = (await resp.json()) as {
-      access_token: string;
-      expires_in: number;
-    };
+        const { access_token, expires_in } = (await resp.json()) as {
+          access_token: string;
+          expires_in: number; // in seconds
+        };
 
-    // Calculate a random multiplier between 0.3 and 0.8 to to apply to the expiry
-    // so that we refresh in the background ahead of expiration, but avoid
-    // multiple processes hammering the service at the same time.
-    const jitter = Math.random() * 0.5 + 0.3;
+        const expiresInMs = expires_in * 1000;
+        expiresAt = Date.now() + expiresInMs;
+        accessToken = access_token;
 
-    // set a timeout to refresh the token in the background
-    // 5-15 sec before it's due to expire.
-    refreshTimeout = setTimeout(refresh, expires_in * jitter);
+        // Calculate a random multiplier to apply to the expiry so that we refresh
+        // in the background ahead of expiration, but avoid multiple processes
+        // hammering the service at the same time.
+        const jitter = Math.random() * 0.05 + 0.9;
+        refreshTimeout = setTimeout(refresh, expiresInMs * jitter);
 
-    accessToken = access_token;
+        refreshed = true;
+      } catch {
+        // Wait and retry
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+
     return accessToken;
   });
 
   abortSignal?.addEventListener("abort", () => clearTimeout(refreshTimeout));
 
-  const getToken = async () => accessToken ?? refresh();
+  const getToken = async () => validAccessToken() ?? refresh();
 
   // Kick off the first refresh immediately
   getToken();

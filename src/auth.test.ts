@@ -88,7 +88,7 @@ describe("initServerAuth test", () => {
     let token = "test-token";
     global.fetch = mock.fn(async (_input: RequestInfo | URL, _init?: RequestInit | undefined) =>
       Promise.resolve({
-        json: () => Promise.resolve({ access_token: `${token}`, expires_in: 0 }),
+        json: () => Promise.resolve({ access_token: `${token}`, expires_in: 1 }),
       }),
     ) as Mock<typeof fetch>;
 
@@ -101,8 +101,36 @@ describe("initServerAuth test", () => {
 
     expect(await getToken()).toEqual("test-token");
     token = "new-token";
-    // allow some time for the token update to propagate
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // immediately check the token again, before it expires
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(await getToken()).toEqual("test-token");
+
+    // Now wait for expiration
+    await new Promise((resolve) => setTimeout(resolve, 1100));
     expect(await getToken()).toEqual("new-token");
+  });
+
+  it("handles errors refreshing auth", async () => {
+    // mock fetch
+    const token = "test-token";
+    let fail = true;
+    global.fetch = mock.fn(async (_input: RequestInfo | URL, _init?: RequestInit | undefined) => {
+      if (fail) {
+        fail = false;
+        return Promise.reject(new Error("Bogus"));
+      }
+      return Promise.resolve({
+        json: () => Promise.resolve({ access_token: `${token}`, expires_in: 1 }),
+      });
+    }) as Mock<typeof fetch>;
+
+    // generate the getToken func
+    const getToken = initServerAuth({
+      clientID: "test",
+      clientSecret: "test",
+      abortSignal: abortController?.signal,
+    });
+
+    expect(await getToken()).toEqual("test-token");
   });
 });
