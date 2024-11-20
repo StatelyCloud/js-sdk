@@ -1,6 +1,6 @@
 {
   "name": "@stately-cloud/client",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "author": "Stately Cloud <support@stately.cloud> (https://stately.cloud/)",
   "description": "JavaScript client for StatelyDB API",
   "types": "dist/index.d.ts",
@@ -45,8 +45,8 @@
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.2.0",
-    "@connectrpc/connect": "^2.0.0-rc.1",
-    "@connectrpc/connect-node": "^2.0.0-rc.1"
+    "@connectrpc/connect": "^2.0.0",
+    "@connectrpc/connect-node": "^2.0.0"
   },
   "peerDependencies": {
     "@bufbuild/protobuf": "^2.2.0"
