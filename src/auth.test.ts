@@ -16,7 +16,7 @@ after(() => {
 describe("initServerAuth test", () => {
   it("fetches token correctly", async () => {
     // mock fetch
-    global.fetch = mock.fn((input: RequestInfo | URL, init?: RequestInit | undefined) => {
+    global.fetch = mock.fn((input: RequestInfo | URL, init?: RequestInit) => {
       // make assertions
       expect(input).toEqual("test-domain/oauth/token");
       expect(init).toHaveProperty("method", "POST");
@@ -47,7 +47,7 @@ describe("initServerAuth test", () => {
     expect(await getToken()).toEqual("test-token");
 
     // override global fetch to throw an error
-    global.fetch = mock.fn((_input: RequestInfo | URL, _init?: RequestInit | undefined) => {
+    global.fetch = mock.fn((_input: RequestInfo | URL, _init?: RequestInit) => {
       throw Error("boom");
     }) as Mock<typeof fetch>;
 
@@ -59,7 +59,7 @@ describe("initServerAuth test", () => {
   it("dedupes concurrent refresh requests", async () => {
     // mock fetch
     let count = 0;
-    global.fetch = mock.fn(async (_input: RequestInfo | URL, _init?: RequestInit | undefined) => {
+    global.fetch = mock.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
       // return mock response after 100ms
       const token = count;
       count++;
@@ -86,7 +86,7 @@ describe("initServerAuth test", () => {
   it("expires auth based on response", async () => {
     // mock fetch
     let token = "test-token";
-    global.fetch = mock.fn(async (_input: RequestInfo | URL, _init?: RequestInit | undefined) =>
+    global.fetch = mock.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
       Promise.resolve({
         json: () => Promise.resolve({ access_token: `${token}`, expires_in: 1 }),
       }),
@@ -114,7 +114,7 @@ describe("initServerAuth test", () => {
     // mock fetch
     const token = "test-token";
     let fail = true;
-    global.fetch = mock.fn(async (_input: RequestInfo | URL, _init?: RequestInit | undefined) => {
+    global.fetch = mock.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
       if (fail) {
         fail = false;
         return Promise.reject(new Error("Bogus"));

@@ -312,6 +312,7 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
         {
           tokenData: "tokenData" in tokenData ? tokenData.tokenData : tokenData,
           direction: ContinueListDirection.CONTINUE_LIST_FORWARD,
+          schemaVersionId: this.schemaVersionID,
         },
         this.connectOptions,
       );
@@ -371,6 +372,7 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
       const responseStream = this.client.syncList(
         {
           tokenData: "tokenData" in tokenData ? tokenData.tokenData : tokenData,
+          schemaVersionId: this.schemaVersionID,
         },
         this.connectOptions,
       );
