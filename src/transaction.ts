@@ -8,6 +8,7 @@ import { type Item as ApiItem } from "./api/db/item_pb.js";
 import { SortableProperty } from "./api/db/item_property_pb.js";
 import { SortDirection } from "./api/db/list_pb.js";
 import { type ListToken } from "./api/db/list_token_pb.js";
+import { PutItemSchema } from "./api/db/put_pb.js";
 import {
   TransactionDeleteSchema,
   TransactionGetSchema,
@@ -16,6 +17,7 @@ import {
   type TransactionRequest,
   type TransactionResponse,
 } from "./api/db/transaction_pb.js";
+import { MapPutItems, PutOptions, WithPutOptions } from "./database.js";
 import { StatelyError } from "./errors.js";
 import { handleListResponse, ListResult } from "./list-result.js";
 import {
@@ -193,14 +195,41 @@ export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends
   }
 
   /**
-   * putBatch adds up to 50 Items to the Store, or replaces Items if they already exist
-   * at that path. This will fail if the caller does not have permission to
-   * create Items. Data can be provided as either JSON, or as a proto encoded by
-   * a previously agreed upon schema, or by some combination of the two. You can
-   * put items of different types in a single putBatch. Puts will not be
-   * acknowledged until the transaction is committed - the TransactionResult
-   * will contain the updated metadata for each item.
-   * @param items - Items from your generated schema. Max 50 items.
+   * put adds an Item to the Store, or replaces the Item if it already exists at
+   * that path. This will fail if the caller does not have permission to create
+   * Items.
+   * @param item - An Item from your generated schema. Use `withPutOptions` to
+   * specify additional options for this item.
+   * @param options - Additional options for this put operation - an alternative
+   * to using `withPutOptions`.
+   * @returns A generated ID for the item, if that item had an ID generated for
+   * its "initialValue" field. Otherwise the value is undefined. This value can
+   * be used in subsequent puts to reference newly created items.
+   * @example
+   * let lightsaber = client.create("Equipment", { color: "green", jedi: "luke", type: "lightsaber" });
+   * lightsaber = await client.put(lightsaber);
+   */
+  async put<I extends AnyItem<TypeMap, AllItemTypes>>(
+    item: I | WithPutOptions<I>,
+    options?: PutOptions,
+  ): Promise<bigint | Uint8Array | undefined> {
+    if (options) {
+      item = "$typeName" in item ? { item, ...options } : { ...item, ...options };
+    }
+    const result = await this.putBatch(item);
+    return result[0];
+  }
+
+  /**
+   * putBatch adds up to 50 Items to the Store, or replaces Items if they
+   * already exist at that path. This will fail if the caller does not have
+   * permission to create Items. Data can be provided as either JSON, or as a
+   * proto encoded by a previously agreed upon schema, or by some combination of
+   * the two. You can put items of different types in a single putBatch. Puts
+   * will not be acknowledged until the transaction is committed - the
+   * TransactionResult will contain the updated metadata for each item.
+   * @param items - Items from your generated schema. Max 50 items. Use
+   * `withPutOptions` to add options to individual items.
    * @returns An array of generated IDs for each item, if that item had an ID
    * generated for its "initialValue" field. Otherwise the value is undefined.
    * These are returned in the same order as the input items. This value can be
@@ -212,36 +241,33 @@ export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends
    * );
    */
   async putBatch<Items extends AnyItem<TypeMap, AllItemTypes>[]>(
-    ...items: Items
+    ...items: MapPutItems<TypeMap, AllItemTypes, Items>
   ): Promise<(bigint | Uint8Array | undefined)[]> {
+    const putItems = items.map((data) => {
+      if ("$typeName" in data) {
+        return create(PutItemSchema, { item: this.client.marshal(data) });
+      } else if ("item" in data) {
+        return create(PutItemSchema, {
+          item: this.client.marshal(data.item),
+          mustNotExist: Boolean(data.mustNotExist),
+        });
+      } else {
+        throw new StatelyError(
+          "NotAnItem",
+          "Request item is not a protobuf object",
+          Code.InvalidArgument,
+        );
+      }
+    });
+
     const result = await this.requestResponse(
       "putItems",
       "putAck",
       create(TransactionPutSchema, {
-        puts: items.map((data) => ({
-          item: this.client.marshal(data),
-        })),
+        puts: putItems,
       }),
     );
     return result.generatedIds.map((id) => id.value.value);
-  }
-
-  /**
-   * put adds an Item to the Store, or replaces the Item if it already exists at
-   * that path. This will fail if the caller does not have permission to create
-   * Items.
-   * @param item - An Item from your generated schema.
-   * @returns A generated ID for the item, if that item had an ID generated for
-   * its "initialValue" field. Otherwise the value is undefined. This value can
-   * be used in subsequent puts to reference newly created items.
-   * @example
-   * let lightsaber = client.create("Equipment", { color: "green", jedi: "luke", type: "lightsaber" });
-   * lightsaber = await client.put(lightsaber);
-   */
-  async put<I extends AnyItem<TypeMap, AllItemTypes>>(
-    item: I,
-  ): Promise<bigint | Uint8Array | undefined> {
-    return (await this.putBatch(item))[0];
   }
 
   /**

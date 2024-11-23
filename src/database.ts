@@ -17,6 +17,7 @@ import { type Item as ApiItem, ItemSchema } from "./api/db/item_pb.js";
 import { SortableProperty } from "./api/db/item_property_pb.js";
 import { SortDirection } from "./api/db/list_pb.js";
 import { type ListToken } from "./api/db/list_token_pb.js";
+import { PutItemSchema } from "./api/db/put_pb.js";
 import { type DatabaseService } from "./api/db/service_pb.js";
 import { type TransactionRequest } from "./api/db/transaction_pb.js";
 import { StatelyError } from "./errors.js";
@@ -46,6 +47,39 @@ function checkStoreId(storeId: StoreID): StoreID {
   }
   return storeId;
 }
+
+export interface PutOptions {
+  /**
+   * mustNotExist is a condition that indicates this item must not already exist
+   * at any of its key paths. If there is already an item at one of those paths,
+   * the Put operation will fail with a "ConditionalCheckFailed" error. Note that
+   * if the item has an `initialValue` field in its key, that initial value will
+   * automatically be chosen not to conflict with existing items, so this
+   * condition only applies to key paths that do not contain the `initialValue`
+   * field.
+   */
+  mustNotExist?: boolean;
+}
+
+/**
+ * Wrap an item with additional options for a Put operation. Use withPutOptions
+ * to construct this for improved type inference.
+ */
+export type WithPutOptions<T> = PutOptions & {
+  item: T;
+};
+
+/**
+ * A utility type that turns a list of item types into a list of either items
+ * or items with options.
+ */
+export type MapPutItems<
+  TypeMap extends ItemTypeMap,
+  AllItemTypes extends keyof TypeMap,
+  Items extends AnyItem<TypeMap, AllItemTypes>[],
+> = {
+  [I in keyof Items]: Items[I] | WithPutOptions<Items[I]>;
+};
 
 export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends keyof TypeMap> {
   private readonly callOptions: Readonly<CallOptions>;
@@ -159,13 +193,24 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
    * put adds an Item to the Store, or replaces the Item if it already exists at
    * that path. This will fail if the caller does not have permission to create
    * Items.
-   * @param item - An Item from your generated schema.
+   * @param item - An Item from your generated schema. Use `withPutOptions` to
+   * specify additional options for this item.
+   * @param options - Additional options for this put operation - an alternative
+   * to using `withPutOptions`.
    * @returns The item that was put, with any server-generated fields filled in.
    * @example
    * let lightsaber = client.create("Equipment", { color: "green", jedi: "luke", type: "lightsaber" });
    * lightsaber = await client.put(lightsaber);
+   * // Or with options
+   * lightsaber = await client.put(lightsaber, { mustNotExist: true });
    */
-  async put<I extends AnyItem<TypeMap, AllItemTypes>>(item: I): Promise<I> {
+  async put<I extends AnyItem<TypeMap, AllItemTypes>>(
+    item: I | WithPutOptions<I>,
+    options?: PutOptions,
+  ): Promise<I> {
+    if (options) {
+      item = "$typeName" in item ? { item, ...options } : { ...item, ...options };
+    }
     const result = await this.putBatch(item);
     return result[0];
   }
@@ -176,23 +221,43 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
    * permission to create Items. Data can be provided as either JSON, or as a
    * proto encoded by a previously agreed upon schema, or by some combination of
    * the two. You can put items of different types in a single putBatch.
-   * @param items - Items from your generated schema. Max 50 items.
+   * @param items - Items from your generated schema. Max 50 items. Use
+   * `withPutOptions` to add options to individual items.
    * @returns The items that were put, with any server-generated fields filled
    * in. They are returned in the same order they were provided.
    * @example
-   * const items = await client.putBatch(dataClient,
+   * const items = await client.putBatch(
    *   client.create("Equipment", { color: "green", jedi: "luke", type: "lightsaber" }),
    *   client.create("Equipment", { color: "brown", jedi: "luke", type: "cloak" }),
    * );
+   * // Or with options
+   * const items = await client.putBatch(cloak, { item: lightsaber, mustNotExist: true });
    */
-  async putBatch<Items extends AnyItem<TypeMap, AllItemTypes>[]>(...items: Items): Promise<Items> {
+  async putBatch<Items extends AnyItem<TypeMap, AllItemTypes>[]>(
+    ...items: MapPutItems<TypeMap, AllItemTypes, Items>
+  ): Promise<Items> {
+    const putItems = items.map((data) => {
+      if ("$typeName" in data) {
+        return create(PutItemSchema, { item: this.marshal(data) });
+      } else if ("item" in data) {
+        return create(PutItemSchema, {
+          item: this.marshal(data.item),
+          mustNotExist: Boolean(data.mustNotExist),
+        });
+      } else {
+        throw new StatelyError(
+          "NotAnItem",
+          "Request item is not a protobuf object",
+          Code.InvalidArgument,
+        );
+      }
+    });
+
     const resp = await handleErrors(
       this.client.put(
         {
           storeId: this.storeId,
-          puts: items.map((data) => ({
-            item: this.marshal(data),
-          })),
+          puts: putItems,
           schemaVersionId: this.schemaVersionID,
         },
         this.connectOptions,
