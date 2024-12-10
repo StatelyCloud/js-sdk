@@ -1,6 +1,6 @@
 import { Code, createClient, type Interceptor } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-node";
-import { initServerAuth } from "./auth.js";
+import { accessKeyAuth, initServerAuth } from "./auth.js";
 import { StatelyError } from "./errors.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import { requestIdMiddleware } from "./middleware/request-id.js";
@@ -13,7 +13,7 @@ import type { ClientFactory, ClientOptions } from "./types.js";
  * individual APIs.
  */
 export function createNodeClient({
-  authTokenProvider = initServerAuth(),
+  authTokenProvider,
   endpoint,
   region,
 }: ClientOptions = {}): ClientFactory {
@@ -29,25 +29,23 @@ export function createNodeClient({
   // for in bundle size) the middlewares a user wants.
 
   if (!authTokenProvider) {
-    throw new StatelyError(
-      "InvalidArgument",
-      "authTokenProvider is required",
-      Code.InvalidArgument,
-    );
+    if (process.env.STATELY_CLIENT_ID) {
+      authTokenProvider = initServerAuth();
+    } else {
+      authTokenProvider = accessKeyAuth();
+    }
   }
 
-  // TODO: We're installing all the middlewares here by default, but in the
-  // future we could expose a custom client builder that only installs (and pays
-  // for in bundle size) the middlewares a user wants.
+  const baseUrl = makeEndpoint(endpoint, region);
 
   const interceptors: Interceptor[] = [
     requestIdMiddleware,
-    createAuthMiddleware(authTokenProvider),
+    createAuthMiddleware(authTokenProvider(baseUrl)),
     // retryMiddleware,
   ];
 
   const transport = createConnectTransport({
-    baseUrl: makeEndpoint(endpoint, region),
+    baseUrl,
     httpVersion: "2",
     interceptors,
   });

@@ -1,11 +1,11 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "./dist",
+    "outDir": "./dist-test",
     "rootDir": "./src",
     "target": "es2020",
     "module": "NodeNext",
     "moduleResolution": "NodeNext"
   },
-  "exclude": ["./dist/**/*"]
+  "exclude": ["./dist/**/*", "./dist-test/**/*"]
 }

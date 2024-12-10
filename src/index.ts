@@ -8,7 +8,7 @@ export { Code } from "@connectrpc/connect";
 export { SortableProperty } from "./api/db/item_property_pb.js";
 export { SortDirection } from "./api/db/list_pb.js";
 export type { ListToken } from "./api/db/list_token_pb.js";
-export { initServerAuth } from "./auth.js";
+export { accessKeyAuth, initServerAuth } from "./auth.js";
 export type * from "./database.js";
 export { StatelyError } from "./errors.js";
 export * from "./keypath.js";

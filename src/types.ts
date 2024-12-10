@@ -67,7 +67,7 @@ export interface ClientOptions {
    * provide some common implementations of this, but you may want to provide
    * your own.
    */
-  authTokenProvider?: AuthTokenProvider;
+  authTokenProvider?: (endpoint: string) => AuthTokenProvider;
 }
 
 /**

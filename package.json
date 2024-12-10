@@ -1,6 +1,6 @@
 {
   "name": "@stately-cloud/client",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "author": "Stately Cloud <support@stately.cloud> (https://stately.cloud/)",
   "description": "JavaScript client for StatelyDB API",
   "types": "dist/index.d.ts",
@@ -33,14 +33,17 @@
     "lint:prettier": "prettier 'src/**/*.ts'",
     "lint": "eslint 'src/**/*.ts'",
     "fix:eslint": "eslint --fix 'src/**/*.ts'",
-    "test": "mkdir -p dist-test && cp -r src/api dist-test && tsc -p tsconfig.json && node --test --enable-source-maps"
+    "pretest": "mkdir -p dist-test && cp -r src/api dist-test && tsc -p tsconfig.json",
+    "test": "node --test --enable-source-maps"
   },
   "license": "Apache-2.0",
   "devDependencies": {
+    "@connectrpc/connect-fastify": "^2.0.0",
     "@stately-cloud/eslint": "workspace:*",
     "@types/node": "^22.4.1",
     "eslint": "^9.9.0",
     "expect": "^29.7.0",
+    "fastify": "^5.1.0",
     "typescript": "^5.5.4"
   },
   "dependencies": {
