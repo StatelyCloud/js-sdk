@@ -61,7 +61,10 @@ export class StatelyError extends Error {
   static from(e: unknown) {
     if (e instanceof StatelyError) {
       return e;
+    } else if (e instanceof ConnectError && e.cause instanceof StatelyError) {
+      return e.cause;
     }
+
     const connectError = ConnectError.from(e);
 
     const details = connectError.findDetails(StatelyErrorDetailsSchema);

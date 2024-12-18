@@ -1,11 +1,8 @@
-import { Code, createClient } from "@connectrpc/connect";
-import { createConnectTransport, Http2SessionManager } from "@connectrpc/connect-node";
+import { Code, createClient, Transport } from "@connectrpc/connect";
 import { AuthService } from "./api/auth/service_pb.js";
 import { StatelyError } from "./errors.js";
-import { requestIdMiddleware } from "./middleware/request-id.js";
 import { type AuthTokenProvider } from "./types.js";
 
-const DEFAULT_GRANT_TYPE = "client_credentials";
 const maxRetries = 10;
 const initialBackoffMs = 200;
 const maxBackoffMs = 15_000;
@@ -31,8 +28,8 @@ export function accessKeyAuth({
 }: {
   accessKey?: string;
   abortSignal?: AbortSignal;
-} = {}): (endpoint: string) => AuthTokenProvider {
-  return (endpoint) => {
+} = {}): (transport: Transport, close: () => void) => AuthTokenProvider {
+  return (transport, close) => {
     let accessToken: string | undefined;
     // The time at which the current token expires, in milliseconds since epoch
     let expiresAt = 0;
@@ -50,14 +47,12 @@ createClient({ authTokenProvider: accessKeyAuth({ accessKey: 'my-access-key' }) 
       );
     }
 
-    const sessionManager = new Http2SessionManager(endpoint);
-
-    const transport = createConnectTransport({
-      baseUrl: endpoint,
-      httpVersion: "2",
-      interceptors: [requestIdMiddleware],
-      sessionManager,
-    });
+    const onAbort = () => {
+      clearTimeout(refreshTimeout);
+      close();
+      abortSignal?.removeEventListener("abort", onAbort);
+    };
+    abortSignal?.addEventListener("abort", onAbort);
 
     const authClient = createClient(AuthService, transport);
 
@@ -111,135 +106,6 @@ createClient({ authTokenProvider: accessKeyAuth({ accessKey: 'my-access-key' }) 
 
       return accessToken;
     });
-
-    abortSignal?.addEventListener("abort", () => {
-      clearTimeout(refreshTimeout);
-      sessionManager.abort();
-    });
-
-    const getToken = async () => validAccessToken() ?? refresh();
-
-    // Kick off the first refresh immediately
-    getToken();
-
-    return getToken;
-  };
-}
-
-class HttpStatusError extends Error {
-  status: number;
-  statusText: string;
-
-  constructor(status: number, statusText: string) {
-    super(`HTTP ${status} ${statusText}`);
-    this.name = "HttpStatusError";
-    this.status = status;
-    this.statusText = statusText;
-  }
-}
-
-/**
- * initServerAuth initializes an auth client for backend servers and sets up an
- * automatically refreshing access token that can be fetched with getToken().
- * This should be passed to clients as `authTokenProvider`.
- * If no clientID or clientSecret are passed then the env vars `STATELY_CLIENT_ID` and `STATELY_CLIENT_SECRET`
- * will be used by default.
- * @deprecated use accessKeyAuth instead
- * @example
- * const client = createClient({
- *   authTokenProvider: initServerAuth({
- *     clientID: "my-client-id",
- *     clientSecret: "my-client-secret",
- *   }),
- * });
- */
-export function initServerAuth({
-  clientID = process.env.STATELY_CLIENT_ID,
-  clientSecret = process.env.STATELY_CLIENT_SECRET,
-  authDomain = "https://oauth.stately.cloud",
-  audience = "api.stately.cloud",
-  abortSignal,
-}: {
-  clientID?: string;
-  clientSecret?: string;
-  authDomain?: string;
-  audience?: string;
-  abortSignal?: AbortSignal;
-} = {}): () => AuthTokenProvider {
-  return () => {
-    let accessToken: string | undefined;
-    // The time at which the current token expires, in milliseconds since epoch
-    let expiresAt = 0;
-    let refreshTimeout: NodeJS.Timeout | number | undefined;
-
-    // this also fails if either are an empty string
-    if (!clientID || !clientSecret) {
-      throw new StatelyError(
-        "MissingCredentials",
-        `Failed to resolve auth credentials. \
-Please ensure the "STATELY_CLIENT_ID" and "STATELY_CLIENT_SECRET" \
-environment variables are set, or pass in the client ID and secret explicitly: createClient({ authTokenProvider: initServerAuth({ clientID, clientSecret }) }).`,
-        Code.FailedPrecondition,
-      );
-    }
-
-    const validAccessToken = () =>
-      accessToken && Date.now() < expiresAt ? accessToken : undefined;
-
-    const refresh = dedupePromise(async function refresh(): Promise<string> {
-      clearTimeout(refreshTimeout);
-      let refreshed = false;
-      let attempt = 0;
-      while (!accessToken || !refreshed) {
-        abortSignal?.throwIfAborted();
-
-        try {
-          const resp = await fetch(`${authDomain}/oauth/token`, {
-            method: "POST",
-            cache: "no-store",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              client_id: clientID,
-              client_secret: clientSecret,
-              audience,
-              grant_type: DEFAULT_GRANT_TYPE,
-            }),
-          });
-
-          if (!resp.ok) {
-            throw new HttpStatusError(resp.status, resp.statusText);
-          }
-
-          const { access_token, expires_in } = (await resp.json()) as {
-            access_token: string;
-            expires_in: number; // in seconds
-          };
-
-          const expiresInMs = expires_in * 1000;
-          expiresAt = Date.now() + expiresInMs;
-          accessToken = access_token;
-          refreshTimeout = setTimeout(refresh, expiresInMs * jitter());
-
-          refreshed = true;
-        } catch (e) {
-          if (
-            (e instanceof HttpStatusError && (e.status === 401 || e.status === 403)) ||
-            attempt > maxRetries
-          ) {
-            throw StatelyError.from(e);
-          }
-          // Wait and retry
-          await new Promise((resolve) => setTimeout(resolve, backoff(attempt, 200, 15000)));
-        }
-        attempt++;
-      }
-
-      return accessToken;
-    });
-
-    abortSignal?.addEventListener("abort", () => clearTimeout(refreshTimeout));
 
     const getToken = async () => validAccessToken() ?? refresh();
 

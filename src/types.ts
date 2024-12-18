@@ -1,5 +1,5 @@
 import type { DescMessage, DescService, MessageShape } from "@bufbuild/protobuf";
-import type { Client } from "@connectrpc/connect";
+import type { Client, Transport } from "@connectrpc/connect";
 import type { SortDirection } from "./api/db/list_pb.js";
 
 // typed IDs
@@ -67,7 +67,7 @@ export interface ClientOptions {
    * provide some common implementations of this, but you may want to provide
    * your own.
    */
-  authTokenProvider?: (endpoint: string) => AuthTokenProvider;
+  authTokenProvider?: (transport: Transport, close: () => void) => AuthTokenProvider;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { Code, createClient, type Interceptor } from "@connectrpc/connect";
-import { createConnectTransport } from "@connectrpc/connect-node";
-import { accessKeyAuth, initServerAuth } from "./auth.js";
+import { createConnectTransport, Http2SessionManager } from "@connectrpc/connect-node";
+import { accessKeyAuth } from "./auth.js";
 import { StatelyError } from "./errors.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import { requestIdMiddleware } from "./middleware/request-id.js";
@@ -29,18 +29,25 @@ export function createNodeClient({
   // for in bundle size) the middlewares a user wants.
 
   if (!authTokenProvider) {
-    if (process.env.STATELY_CLIENT_ID) {
-      authTokenProvider = initServerAuth();
-    } else {
-      authTokenProvider = accessKeyAuth();
-    }
+    // try and create an access key auth provider.
+    // this will read the access key from the environment variable STATELY_ACCESS_KEY
+    // and throw an error if it is not set.
+    authTokenProvider = accessKeyAuth();
   }
 
   const baseUrl = makeEndpoint(endpoint, region);
 
+  const sessionManager = new Http2SessionManager(baseUrl);
+  const authTransport = createConnectTransport({
+    baseUrl,
+    httpVersion: "2",
+    interceptors: [requestIdMiddleware],
+    sessionManager,
+  });
+
   const interceptors: Interceptor[] = [
     requestIdMiddleware,
-    createAuthMiddleware(authTokenProvider(baseUrl)),
+    createAuthMiddleware(authTokenProvider(authTransport, () => sessionManager.abort())),
     // retryMiddleware,
   ];
 
