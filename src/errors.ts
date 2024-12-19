@@ -39,7 +39,7 @@ export class StatelyError extends Error {
     cause?: string | Error,
     requestId?: string,
   ) {
-    super(createMessage(message, statelyCode, code));
+    super(createMessage(message, statelyCode, code, requestId));
     // see https://www.typescriptlang.org/docs/handbook/release-notes/typescript-2-2.html#example
     Object.setPrototypeOf(this, new.target.prototype);
     this.statelyCode = statelyCode;
@@ -112,7 +112,16 @@ export class StatelyError extends Error {
 /**
  * Create an error message, prefixing the given code.
  */
-function createMessage(message: string, statelyCode: string, code: Code) {
+function createMessage(
+  message: string,
+  statelyCode: string,
+  code: Code,
+  requestId: string | undefined,
+) {
   const codeString = `${Code[code]}/${statelyCode}`;
-  return message.length ? `(${codeString}) ${message}` : `(${codeString})`;
+  const msg = message.length ? `(${codeString}) ${message}` : `(${codeString})`;
+  if (requestId) {
+    return `${msg} (Request ID: ${requestId})`;
+  }
+  return msg;
 }

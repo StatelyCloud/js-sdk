@@ -61,6 +61,18 @@ export declare type PutItem = Message<"stately.db.PutItem"> & {
   item?: Item;
 
   /**
+   * overwrite_metadata_timestamps indicates that any "fromMetadata" timestamp
+   * fields in the incoming payload should be saved as provided in the database.
+   * Normally these would be ignored as they are automatically maintained, but
+   * this flag can be useful for migrations from other systems. Note that this
+   * only works for timestamps (createdAtTime and lastModifiedAtTime) - versions
+   * cannot be overridden.
+   *
+   * @generated from field: bool overwrite_metadata_timestamps = 2;
+   */
+  overwriteMetadataTimestamps: boolean;
+
+  /**
    * must_not_exist is a condition that indicates this item must not already
    * exist at any of its key paths. If there is already an item at one of those
    * paths, the Put operation will fail with a ConditionalCheckFailed error.

@@ -50,6 +50,16 @@ function checkStoreId(storeId: StoreID): StoreID {
 
 export interface PutOptions {
   /**
+   * If set to true, the server will set the `createdAtTime` and/or
+   * `lastModifiedAtTime` fields based on the current values in this item
+   * (assuming you've mapped them to a field using `fromMetadata`). Without
+   * this, those fields are always ignored and the server sets them to the
+   * appropriate times. This option can be useful when migrating data from
+   * another system.
+   */
+  overwriteMetadataTimestamps?: boolean;
+
+  /**
    * mustNotExist is a condition that indicates this item must not already exist
    * at any of its key paths. If there is already an item at one of those paths,
    * the Put operation will fail with a "ConditionalCheckFailed" error. Note that
@@ -243,6 +253,7 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
         return create(PutItemSchema, {
           item: this.marshal(data.item),
           mustNotExist: Boolean(data.mustNotExist),
+          overwriteMetadataTimestamps: Boolean(data.overwriteMetadataTimestamps),
         });
       } else {
         throw new StatelyError(
