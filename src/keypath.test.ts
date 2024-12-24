@@ -3,25 +3,19 @@ import { describe, it } from "node:test";
 import { keyId, keyPath } from "./keypath.js";
 
 describe("keyId", () => {
-  it("should convert a string key ID to a string", () => {
-    const result = keyId("123");
-    expect(result).toBe("123");
-  });
-
-  it("should convert a number key ID to a string", () => {
-    const result = keyId(123);
-    expect(result).toBe("123");
-  });
-
-  it("should convert a bigint key ID to a string", () => {
-    const result = keyId(BigInt(123));
-    expect(result).toBe("123");
-  });
-
-  it("should convert a Uint8Array key ID to a string", () => {
-    const result = keyId(new Uint8Array([1, 2, 3]));
-    expect(result).toBe("AQID");
-  });
+  for (const [name, input, expected] of [
+    ["string", "123", "123"],
+    ["number", 123, "123"],
+    ["bigint", 123n, "123"],
+    ["Uint8Array", new Uint8Array([1, 2, 3]), "AQID"],
+    ["string with slashes", "foo/bar", "foo%/bar"],
+    ["string with percents", "foo%bar", "foo%%bar"],
+  ] as const) {
+    it(`should convert a ${name} key ID to a string`, () => {
+      const result = keyId(input);
+      expect(result).toBe(expected);
+    });
+  }
 });
 
 describe("keyPath", () => {

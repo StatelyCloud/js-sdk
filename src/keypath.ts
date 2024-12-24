@@ -15,7 +15,7 @@ export type KeyIDInput = string | number | bigint | Uint8Array;
  */
 export function keyId(input: KeyIDInput): string {
   if (typeof input === "string") {
-    return input;
+    return input.replace(/([%/])/g, "%$1");
   }
   if (typeof input === "number") {
     if (!Number.isInteger(input) || input < 0) {
