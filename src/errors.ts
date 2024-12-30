@@ -84,7 +84,11 @@ export class StatelyError extends Error {
       Code[connectError.code],
       connectError.rawMessage,
       connectError.code,
-      connectError,
+      connectError.cause instanceof Error
+        ? connectError.cause
+        : typeof connectError.cause === "string"
+          ? connectError.cause
+          : undefined,
       requestId,
     );
   }
