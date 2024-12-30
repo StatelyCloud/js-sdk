@@ -3,7 +3,7 @@ import type { Client, Transport } from "@connectrpc/connect";
 import type { SortDirection } from "./api/db/list_pb.js";
 
 // typed IDs
-export type StoreID = bigint;
+export type StoreID = bigint | number;
 export type SchemaVersionID = number;
 export type AuthTokenProvider = () => Promise<string>;
 

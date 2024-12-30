@@ -49,5 +49,10 @@ export function createClient<TypeMap extends ItemTypeMap, AllItemTypes extends k
   opts: ClientOptions = {},
 ): DatabaseClient<TypeMap, AllItemTypes> {
   const clientFactory = createNodeClient(opts);
-  return new DatabaseClient(clientFactory(DatabaseService), storeId, itemTypeMap, schemaVersionID);
+  return new DatabaseClient(
+    clientFactory(DatabaseService),
+    BigInt(storeId),
+    itemTypeMap,
+    schemaVersionID,
+  );
 }

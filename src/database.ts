@@ -38,16 +38,6 @@ import {
   type StoreID,
 } from "./types.js";
 
-function checkStoreId(storeId: StoreID): StoreID {
-  if (typeof storeId !== "bigint") {
-    throw new StatelyError(
-      "InvalidArgument",
-      "store ID must be a bigint (e.g. 1234567890n or BigInt(1234567890)",
-    );
-  }
-  return storeId;
-}
-
 export interface PutOptions {
   /**
    * If set to true, the server will set the `createdAtTime` and/or
@@ -94,7 +84,7 @@ export type MapPutItems<
 export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends keyof TypeMap> {
   private readonly callOptions: Readonly<CallOptions>;
   private readonly client: Client<typeof DatabaseService>;
-  private readonly storeId: StoreID;
+  private readonly storeId: bigint;
   private readonly typeMap: TypeMap;
   private readonly schemaVersionID: SchemaVersionID;
 
@@ -105,7 +95,7 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
     schemaVersionID: SchemaVersionID,
     callOptions: CallOptions = {},
   ) {
-    this.storeId = checkStoreId(storeId);
+    this.storeId = BigInt(storeId);
     this.client = client;
     this.typeMap = typeMap;
     this.schemaVersionID = schemaVersionID;

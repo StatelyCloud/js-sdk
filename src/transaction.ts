@@ -22,7 +22,6 @@ import { StatelyError } from "./errors.js";
 import { handleListResponse, ListResult } from "./list-result.js";
 import {
   SchemaVersionID,
-  StoreID,
   type AnyItem,
   type Item,
   type ItemTypeMap,
@@ -85,7 +84,7 @@ export interface TransactionHelperDeps<
   TypeMap extends ItemTypeMap,
   AllItemTypes extends keyof TypeMap,
 > {
-  storeId: StoreID;
+  storeId: bigint;
   schemaVersionId: SchemaVersionID;
   unmarshal: (item: ApiItem) => AnyItem<TypeMap, AllItemTypes>;
   marshal: (item: AnyItem<TypeMap, AllItemTypes>) => ApiItem;
