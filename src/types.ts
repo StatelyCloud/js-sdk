@@ -63,6 +63,13 @@ export interface ClientOptions {
   region?: string;
 
   /**
+   * NoAuth is a flag to indicate that the client should not attempt to get an
+   * auth token. This is used when talking to the Stately BYOC Data Plane on
+   * localhost.
+   */
+  noAuth?: boolean;
+
+  /**
    * An async function that returns the auth token to use for requests. We
    * provide some common implementations of this, but you may want to provide
    * your own.

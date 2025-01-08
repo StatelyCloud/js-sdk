@@ -16,6 +16,7 @@ export function createNodeClient({
   authTokenProvider,
   endpoint,
   region,
+  noAuth,
 }: ClientOptions = {}): ClientFactory {
   if (!("Headers" in global)) {
     throw new StatelyError(
@@ -28,7 +29,7 @@ export function createNodeClient({
   // future we could expose a custom client builder that only installs (and pays
   // for in bundle size) the middlewares a user wants.
 
-  if (!authTokenProvider) {
+  if (!authTokenProvider && !noAuth) {
     // try and create an access key auth provider.
     // this will read the access key from the environment variable STATELY_ACCESS_KEY
     // and throw an error if it is not set.
@@ -47,9 +48,14 @@ export function createNodeClient({
 
   const interceptors: Interceptor[] = [
     requestIdMiddleware,
-    createAuthMiddleware(authTokenProvider(authTransport, () => sessionManager.abort())),
     // retryMiddleware,
   ];
+
+  if (authTokenProvider) {
+    interceptors.push(
+      createAuthMiddleware(authTokenProvider(authTransport, () => sessionManager.abort())),
+    );
+  }
 
   const transport = createConnectTransport({
     baseUrl,
