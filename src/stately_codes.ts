@@ -59,6 +59,20 @@ export const enum ErrorCode {
   ConditionalCheckFailed = "ConditionalCheckFailed",
 
   /**
+   * ItemReusedWithDifferentKeyPath occurs when a client reads an Item, then
+   * attempts to write it with a different Key Path. Since writing an Item with
+   * a different Key Path will create a new Item, StatelyDB returns this error
+   * to prevent accidental copying of Items between different Key Paths. If you
+   * intend to move your original Item to a new Key Path, you should delete the
+   * original Item and create a new instance of the Item with the new Key Path.
+   * If you intend to create a new Item with the same data, you should create a
+   * new instance of the Item rather than reusing the read result.
+   *
+   * - Not Retryable
+   */
+  ItemReusedWithDifferentKeyPath = "ItemReusedWithDifferentKeyPath",
+
+  /**
    * NonRecoverableTransaction indicates that conditions required for the
    * transaction to succeed are not possible to meet with the current state of
    * the system. This can occur when an Item has more than one key-path, and is

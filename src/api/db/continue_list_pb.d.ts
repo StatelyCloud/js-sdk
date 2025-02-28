@@ -37,7 +37,6 @@ export declare type ContinueListRequest = Message<"stately.db.ContinueListReques
    * If the version the token was created with is different from the client's
    * current version, the operation will error with SchemaVersionMismatch error,
    * in which case you should start over with a fresh BeginList call.
-   * TODO this will soon be required.
    *
    * @generated from field: uint32 schema_version_id = 5;
    */

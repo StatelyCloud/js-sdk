@@ -44,12 +44,16 @@ export class ListResult<ResultType> implements AsyncGenerator<ResultType, ListTo
     return this;
   }
   async next(...args: [] | [unknown]): Promise<IteratorResult<ResultType, ListToken>> {
-    const nextVal = await this.gen.next(...args);
-    if (nextVal.done) {
-      // Save the token for later
-      this.token = nextVal.value!;
+    try {
+      const nextVal = await this.gen.next(...args);
+      if (nextVal.done) {
+        // Save the token for later
+        this.token = nextVal.value!;
+      }
+      return nextVal;
+    } catch (e) {
+      throw StatelyError.from(e);
     }
-    return nextVal;
   }
   return(
     value: ListToken | PromiseLike<ListToken>,
@@ -57,7 +61,7 @@ export class ListResult<ResultType> implements AsyncGenerator<ResultType, ListTo
     return this.gen.return(value);
   }
   throw(e: any): Promise<IteratorResult<ResultType, ListToken>> {
-    return this.gen.throw(e);
+    return this.gen.throw(StatelyError.from(e));
   }
 
   /**

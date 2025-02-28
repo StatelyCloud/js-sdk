@@ -32,7 +32,6 @@ export declare type SyncListRequest = Message<"stately.db.SyncListRequest"> & {
    * items in the client's current schema version. The returned list token can then
    * be used for further SyncList and ContinueList calls with the current schema
    * version, without having to start a new BeginList call.
-   * TODO this will soon be required.
    *
    * @generated from field: uint32 schema_version_id = 5;
    */

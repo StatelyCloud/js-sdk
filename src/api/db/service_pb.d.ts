@@ -4,10 +4,12 @@
 
 import type { GenFile, GenService } from "@bufbuild/protobuf/codegenv1";
 import type { ContinueListRequestSchema } from "./continue_list_pb.js";
+import type { ContinueScanRequestSchema } from "./continue_scan_pb.js";
 import type { DeleteRequestSchema, DeleteResponseSchema } from "./delete_pb.js";
 import type { GetRequestSchema, GetResponseSchema } from "./get_pb.js";
 import type { BeginListRequestSchema, ListResponseSchema } from "./list_pb.js";
 import type { PutRequestSchema, PutResponseSchema } from "./put_pb.js";
+import type { BeginScanRequestSchema } from "./scan_pb.js";
 import type {
   ScanRootPathsRequestSchema,
   ScanRootPathsResponseSchema,
@@ -110,6 +112,40 @@ export declare const DatabaseService: GenService<{
   continueList: {
     methodKind: "server_streaming";
     input: typeof ContinueListRequestSchema;
+    output: typeof ListResponseSchema;
+  };
+  /**
+   * BeginScan initiates a scan request which will scan over the entire store
+   * and apply the provided filters. This API returns a token that you can pass
+   * to ContinueScan to paginate through the result set. This can fail if the
+   * caller does not have permission to read Items.
+   * WARNING: THIS API CAN BE EXTREMELY EXPENSIVE FOR STORES WITH A LARGE NUMBER
+   * OF ITEMS.
+   * buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+   *
+   * @generated from rpc stately.db.DatabaseService.BeginScan
+   */
+  beginScan: {
+    methodKind: "server_streaming";
+    input: typeof BeginScanRequestSchema;
+    output: typeof ListResponseSchema;
+  };
+  /**
+   * ContinueScan takes the token from a BeginScan call and returns more results
+   * based on the original request parameters and pagination options. It has
+   * very few options of its own because it is a continuation of a previous list
+   * operation. It will return a new token which can be used for another
+   * ContinueScan call, and so on. Calls to ContinueScan are tied to the
+   * authorization of the original BeginScan call, so if the original BeginScan
+   * call was allowed, ContinueScan with its token should also be allowed.
+   * WARNING: THIS API CAN BE EXTREMELY EXPENSIVE FOR STORES WITH A LARGE NUMBER OF ITEMS.
+   * buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+   *
+   * @generated from rpc stately.db.DatabaseService.ContinueScan
+   */
+  continueScan: {
+    methodKind: "server_streaming";
+    input: typeof ContinueScanRequestSchema;
     output: typeof ListResponseSchema;
   };
   /**

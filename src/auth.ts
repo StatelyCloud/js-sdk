@@ -85,6 +85,7 @@ createClient({ authTokenProvider: accessKeyAuth({ accessKey: 'my-access-key' }) 
           refreshed = true;
         } catch (e) {
           const err = StatelyError.from(e);
+          err.message = `${err.message} [refreshing auth token]`;
           if (
             err.code === Code.Unauthenticated ||
             err.code === Code.PermissionDenied ||
