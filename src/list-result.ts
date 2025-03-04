@@ -58,10 +58,18 @@ export class ListResult<ResultType> implements AsyncGenerator<ResultType, ListTo
   return(
     value: ListToken | PromiseLike<ListToken>,
   ): Promise<IteratorResult<ResultType, ListToken>> {
-    return this.gen.return(value);
+    try {
+      return this.gen.return(value);
+    } catch (e) {
+      return Promise.reject(StatelyError.from(e));
+    }
   }
   throw(e: any): Promise<IteratorResult<ResultType, ListToken>> {
-    return this.gen.throw(StatelyError.from(e));
+    try {
+      return this.gen.throw(StatelyError.from(e));
+    } catch (e) {
+      return Promise.reject(StatelyError.from(e));
+    }
   }
 
   /**

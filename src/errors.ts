@@ -25,8 +25,6 @@ export class StatelyError extends Error {
 
   readonly cause?: string | Error;
 
-  readonly requestId?: string;
-
   override name = "StatelyError";
 
   /**
@@ -37,15 +35,13 @@ export class StatelyError extends Error {
     message: string,
     code: Code = (Code[statelyCode as unknown as number] as unknown as Code) ?? Code.Unknown,
     cause?: string | Error,
-    requestId?: string,
   ) {
-    super(createMessage(message, statelyCode, code, requestId));
+    super(createMessage(message, statelyCode, code));
     // see https://www.typescriptlang.org/docs/handbook/release-notes/typescript-2-2.html#example
     Object.setPrototypeOf(this, new.target.prototype);
     this.statelyCode = statelyCode;
     this.code = code;
     this.cause = cause;
-    this.requestId = requestId;
   }
 
   /**
@@ -68,7 +64,6 @@ export class StatelyError extends Error {
     const connectError = ConnectError.from(e);
 
     const details = connectError.findDetails(StatelyErrorDetailsSchema);
-    const requestId = connectError.metadata.get("st-rid") ?? undefined;
 
     if (details && details.length > 0) {
       const detail = details[0];
@@ -77,7 +72,6 @@ export class StatelyError extends Error {
         detail.message,
         connectError.code,
         detail.upstreamCause,
-        requestId,
       );
     }
     return new StatelyError(
@@ -89,7 +83,6 @@ export class StatelyError extends Error {
         : typeof connectError.cause === "string"
           ? connectError.cause
           : undefined,
-      requestId,
     );
   }
 
@@ -116,16 +109,8 @@ export class StatelyError extends Error {
 /**
  * Create an error message, prefixing the given code.
  */
-function createMessage(
-  message: string,
-  statelyCode: string,
-  code: Code,
-  requestId: string | undefined,
-) {
+function createMessage(message: string, statelyCode: string, code: Code) {
   const codeString = `${Code[code]}/${statelyCode}`;
   const msg = message.length ? `(${codeString}) ${message}` : `(${codeString})`;
-  if (requestId) {
-    return `${msg} (Request ID: ${requestId})`;
-  }
   return msg;
 }
