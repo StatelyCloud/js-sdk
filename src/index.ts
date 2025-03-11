@@ -42,7 +42,10 @@ export type * from "./types.js";
  * const item = await client.get("/jedi-luke/equipment-lightsaber");
  * const orderItems = await client.withStoreId(6545212412n).beginList("/orders-454/items").items;
  */
-export function createClient<TypeMap extends ItemTypeMap, AllItemTypes extends keyof TypeMap>(
+export function createClient<
+  TypeMap extends ItemTypeMap,
+  AllItemTypes extends keyof TypeMap & string,
+>(
   storeId: StoreID,
   itemTypeMap: TypeMap,
   schemaVersionID: number,

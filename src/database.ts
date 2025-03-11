@@ -18,6 +18,7 @@ import { SortableProperty } from "./api/db/item_property_pb.js";
 import { SortDirection } from "./api/db/list_pb.js";
 import { type ListToken } from "./api/db/list_token_pb.js";
 import { PutItemSchema } from "./api/db/put_pb.js";
+import { FilterConditionSchema } from "./api/db/scan_pb.js";
 import { type DatabaseService } from "./api/db/service_pb.js";
 import { type TransactionRequest } from "./api/db/transaction_pb.js";
 import { StatelyError } from "./errors.js";
@@ -34,6 +35,7 @@ import {
   type Item,
   type ItemTypeMap,
   type ListOptions,
+  type ScanOptions,
   type SchemaVersionID,
   type StoreID,
 } from "./types.js";
@@ -81,7 +83,10 @@ export type MapPutItems<
   [I in keyof Items]: Items[I] | WithPutOptions<Items[I]>;
 };
 
-export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends keyof TypeMap> {
+export class DatabaseClient<
+  TypeMap extends ItemTypeMap,
+  AllItemTypes extends keyof TypeMap & string,
+> {
   private readonly callOptions: Readonly<CallOptions>;
   private readonly client: Client<typeof DatabaseService>;
   private readonly storeId: bigint;
@@ -362,7 +367,7 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
    * use `client.isItemType` to handle different item types.
    * @param tokenData - the token data from the previous list operation.
    * @example
-   * const listResp = client.continueList(dataClient, token.data);
+   * const listResp = client.continueList(token.data);
    * for await (const item of listResp) {
    *   if (client.isType(item, "Equipment")) {
    *     console.log(item.color);
@@ -378,6 +383,127 @@ export class DatabaseClient<TypeMap extends ItemTypeMap, AllItemTypes extends ke
         {
           tokenData: "tokenData" in tokenData ? tokenData.tokenData : tokenData,
           direction: ContinueListDirection.CONTINUE_LIST_FORWARD,
+          schemaVersionId: this.schemaVersionID,
+        },
+        this.connectOptions,
+      );
+      return new ListResult(handleListResponse(this.unmarshal.bind(this), responseStream));
+    } catch (e) {
+      throw StatelyError.from(e);
+    }
+  }
+
+  /**
+   * beginScan begins a scan operation over all Items in the store. This API
+   * returns a token that you can pass to continueScan to expand the result set.
+   * This can fail if the caller does not have permission to read Items. Pass a
+   * list of Item types to filter the results to only those types. If you don't
+   * pass any types, all items will be returned.
+   *
+   * beginScan streams results via an AsyncGenerator, allowing you to handle
+   * results as they arrive. You can call `collect()` on it to get all the
+   * results as a list.
+   *
+   * You can list items of different types in a single beginScan, and you can
+   * use `client.isItemType` to handle different item types.
+   *
+   * WARNING: THIS API CAN BE EXTREMELY EXPENSIVE FOR STORES WITH A LARGE NUMBER
+   * OF ITEMS.
+   *
+   * @example
+   * // With "for await"
+   * const scanResp = client.beginScan();
+   * for await (const item of scanResp) {
+   *   if (client.isType(item, "Equipment")) {
+   *     console.log(item.color);
+   *   } else {
+   *     console.log(item);
+   *   }
+   * }
+   * token = scanResp.token;
+   */
+  beginScan({
+    itemTypes = [],
+    limit = 0,
+    totalSegments,
+    segmentIndex,
+  }: ScanOptions<AllItemTypes> = {}): ListResult<AnyItem<TypeMap, AllItemTypes>> {
+    try {
+      if ((totalSegments === undefined) !== (segmentIndex === undefined)) {
+        throw new StatelyError(
+          "InvalidArgument",
+          "totalSegments and segmentIndex must both be set or both be unset",
+        );
+      }
+
+      const responseStream = this.client.beginScan(
+        {
+          storeId: this.storeId,
+          limit,
+          filterCondition: itemTypes.map((itemType) =>
+            create(FilterConditionSchema, {
+              value: {
+                case: "itemType",
+                value: itemType,
+              },
+            }),
+          ),
+          segmentationParams:
+            segmentIndex === undefined
+              ? undefined
+              : {
+                  totalSegments,
+                  segmentIndex,
+                },
+
+          schemaVersionId: this.schemaVersionID,
+        },
+        this.connectOptions,
+      );
+      return new ListResult(handleListResponse(this.unmarshal.bind(this), responseStream));
+    } catch (e) {
+      throw StatelyError.from(e);
+    }
+  }
+
+  /**
+   * continueScan takes the token from a beginScan call and returns the next
+   * "page" of results based on the original parameters. It doesn't have options
+   * because it is a continuation of a previous scan operation. It will return a
+   * new token which can be used for another continueScan call, and so on. Each
+   * time you call either continueScan, you should pass the latest version of
+   * the token, and then use the new token from the result in subsequent calls.
+   * Calls to continueScan are tied to the authorization of the original
+   * beginScan call, so if the original beginScan call was allowed, continueScan
+   * with its token should also be allowed.
+   *
+   * continueScan streams results via an AsyncGenerator, allowing you to handle
+   * results as they arrive. You can call `collect()` on it to get all the
+   * results as a list.
+   *
+   * You can list items of different types in a single continueScan, and you can
+   * use `client.isItemType` to handle different item types.
+   *
+   * WARNING: THIS API CAN BE EXTREMELY EXPENSIVE FOR STORES WITH A LARGE NUMBER
+   * OF ITEMS.
+   *
+   * @param tokenData - the token data from the previous list operation.
+   * @example
+   * const scanResp = client.continueScan(token.data);
+   * for await (const item of scanResp) {
+   *   if (client.isType(item, "Equipment")) {
+   *     console.log(item.color);
+   *   } else {
+   *     console.log(item);
+   *   }
+   * }
+   * token = listResp.token;
+   */
+  continueScan(tokenData: Uint8Array | ListToken): ListResult<AnyItem<TypeMap, AllItemTypes>> {
+    try {
+      const responseStream = this.client.continueScan(
+        {
+          tokenData: "tokenData" in tokenData ? tokenData.tokenData : tokenData,
           schemaVersionId: this.schemaVersionID,
         },
         this.connectOptions,

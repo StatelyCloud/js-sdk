@@ -116,3 +116,34 @@ export interface ListOptions {
   /** The direction to sort the results in. If this is not set, we will sort in ascending order. */
   sortDirection?: SortDirection;
 }
+
+// These options are defined here to consolidate their documentation.
+export interface ScanOptions<AllItemTypes extends string> {
+  /**
+   * itemTypes is a list of item types to filter the scan by. If this is not
+   * specified, all item types will be fetched.
+   */
+  itemTypes?: AllItemTypes[];
+  /**
+   * limit is the maximum number of items to return. If this is not specified or
+   * set to 0 then all items will be fetched. Fewer items than the limit may be
+   * returned even if there are more items to get - make sure to check
+   * token.can_continue.
+   */
+  limit?: number;
+
+  /**
+   * totalSegments is the total number of segments to split the scan into. Use
+   * this to parallelize a scan on the client by splitting it into multiple
+   * segments which you can process concurrently. This can be useful when you
+   * need to quickly process your entire data set for something like a backfill
+   * or data migration. If this is set then segmentIndex must also be set.
+   */
+  totalSegments?: number;
+
+  /**
+   * segmentIndex is the index of the segment to fetch. If this is not set, the
+   * scan will not be segmented. This must be set if totalSegments is set.
+   */
+  segmentIndex?: number;
+}
