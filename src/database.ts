@@ -400,6 +400,11 @@ export class DatabaseClient<
    * list of Item types to filter the results to only those types. If you don't
    * pass any types, all items will be returned.
    *
+   * The limit parameter allows you to set the max number of items to retrieve.
+   * If set to 0 then the first page of results will be returned which may be
+   * empty because it does not contain items of your selected item types. Be
+   * sure to check `token.canContinue` to see if there are more results to fetch.
+   *
    * beginScan streams results via an AsyncGenerator, allowing you to handle
    * results as they arrive. You can call `collect()` on it to get all the
    * results as a list.

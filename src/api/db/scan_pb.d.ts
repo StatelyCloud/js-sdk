@@ -59,9 +59,9 @@ export declare type BeginScanRequest = Message<"stately.db.BeginScanRequest"> & 
 
   /**
    * limit is the maximum number of items to return. If this is not specified or
-   * set to 0, it will default to unlimited. Fewer items than the limit may be
-   * returned even if there are more items to get - make sure to check
-   * token.can_continue.
+   * set to 0, it will return one server side page of items, which may contain zero of your selected
+   * item types and hence be an empty response.
+   * Be sure to check token.can_continue to see if you have more items left to fetch.
    *
    * @generated from field: uint32 limit = 3;
    */
