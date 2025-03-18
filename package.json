@@ -1,6 +1,6 @@
 {
   "name": "@stately-cloud/client",
-  "version": "0.26.0",
+  "version": "0.27.0",
   "author": "Stately Cloud <support@stately.cloud> (https://stately.cloud/)",
   "description": "JavaScript client for StatelyDB API",
   "types": "dist/index.d.ts",
