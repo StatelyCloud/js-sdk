@@ -36,6 +36,7 @@ import {
   type ItemTypeMap,
   type ListOptions,
   type ScanOptions,
+  type SchemaID,
   type SchemaVersionID,
   type StoreID,
 } from "./types.js";
@@ -92,18 +93,21 @@ export class DatabaseClient<
   private readonly storeId: bigint;
   private readonly typeMap: TypeMap;
   private readonly schemaVersionID: SchemaVersionID;
+  private readonly schemaID: bigint;
 
   constructor(
     client: Client<typeof DatabaseService>,
     storeId: StoreID,
     typeMap: TypeMap,
     schemaVersionID: SchemaVersionID,
+    schemaID: SchemaID,
     callOptions: CallOptions = {},
   ) {
     this.storeId = BigInt(storeId);
     this.client = client;
     this.typeMap = typeMap;
     this.schemaVersionID = schemaVersionID;
+    this.schemaID = BigInt(schemaID);
     this.callOptions = callOptions;
   }
 
@@ -187,6 +191,7 @@ export class DatabaseClient<
           })),
           allowStale: this.callOptions.allowStale,
           schemaVersionId: this.schemaVersionID,
+          schemaId: this.schemaID,
         },
         this.connectOptions,
       ),
@@ -265,6 +270,7 @@ export class DatabaseClient<
           storeId: this.storeId,
           puts: putItems,
           schemaVersionId: this.schemaVersionID,
+          schemaId: this.schemaID,
         },
         this.connectOptions,
       ),
@@ -288,6 +294,7 @@ export class DatabaseClient<
             keyPath,
           })),
           schemaVersionId: this.schemaVersionID,
+          schemaId: this.schemaID,
         },
         this.connectOptions,
       ),
@@ -336,6 +343,7 @@ export class DatabaseClient<
           sortDirection,
           allowStale: this.callOptions.allowStale,
           schemaVersionId: this.schemaVersionID,
+          schemaId: this.schemaID,
         },
         this.connectOptions,
       );
@@ -384,6 +392,7 @@ export class DatabaseClient<
           tokenData: "tokenData" in tokenData ? tokenData.tokenData : tokenData,
           direction: ContinueListDirection.CONTINUE_LIST_FORWARD,
           schemaVersionId: this.schemaVersionID,
+          schemaId: this.schemaID,
         },
         this.connectOptions,
       );
@@ -462,6 +471,7 @@ export class DatabaseClient<
                 },
 
           schemaVersionId: this.schemaVersionID,
+          schemaId: this.schemaID,
         },
         this.connectOptions,
       );
@@ -510,6 +520,7 @@ export class DatabaseClient<
         {
           tokenData: "tokenData" in tokenData ? tokenData.tokenData : tokenData,
           schemaVersionId: this.schemaVersionID,
+          schemaId: this.schemaID,
         },
         this.connectOptions,
       );
@@ -570,6 +581,7 @@ export class DatabaseClient<
         {
           tokenData: "tokenData" in tokenData ? tokenData.tokenData : tokenData,
           schemaVersionId: this.schemaVersionID,
+          schemaId: this.schemaID,
         },
         this.connectOptions,
       );
@@ -611,6 +623,7 @@ export class DatabaseClient<
     const txnClient = new TransactionHelper(
       {
         storeId: this.storeId,
+        schemaId: this.schemaID,
         schemaVersionId: this.schemaVersionID,
         unmarshal: this.unmarshal.bind(this),
         marshal: this.marshal.bind(this),
@@ -663,10 +676,17 @@ export class DatabaseClient<
    * const item = await client.withAbortSignal(signal).get("/jedi-luke/equipment-lightsaber");
    */
   withAbortSignal(signal: AbortSignal): DatabaseClient<TypeMap, AllItemTypes> {
-    return new DatabaseClient(this.client, this.storeId, this.typeMap, this.schemaVersionID, {
-      ...this.callOptions,
-      signal,
-    });
+    return new DatabaseClient(
+      this.client,
+      this.storeId,
+      this.typeMap,
+      this.schemaVersionID,
+      this.schemaID,
+      {
+        ...this.callOptions,
+        signal,
+      },
+    );
   }
 
   /**
@@ -680,10 +700,17 @@ export class DatabaseClient<
    * const item = await client.withTimeoutMs(1000).get("/jedi-luke/equipment-lightsaber");
    */
   withTimeoutMs(timeoutMs: number): DatabaseClient<TypeMap, AllItemTypes> {
-    return new DatabaseClient(this.client, this.storeId, this.typeMap, this.schemaVersionID, {
-      ...this.callOptions,
-      timeoutMs,
-    });
+    return new DatabaseClient(
+      this.client,
+      this.storeId,
+      this.typeMap,
+      this.schemaVersionID,
+      this.schemaID,
+      {
+        ...this.callOptions,
+        timeoutMs,
+      },
+    );
   }
 
   /**
@@ -695,10 +722,17 @@ export class DatabaseClient<
    * const item = await client.withDeadline(new Date(Date.now() + 1000)).get("/jedi-luke/equipment-lightsaber");
    */
   withDeadline(deadline: Date): DatabaseClient<TypeMap, AllItemTypes> {
-    return new DatabaseClient(this.client, this.storeId, this.typeMap, this.schemaVersionID, {
-      ...this.callOptions,
-      deadline,
-    });
+    return new DatabaseClient(
+      this.client,
+      this.storeId,
+      this.typeMap,
+      this.schemaVersionID,
+      this.schemaID,
+      {
+        ...this.callOptions,
+        deadline,
+      },
+    );
   }
 
   /**
@@ -711,10 +745,17 @@ export class DatabaseClient<
    * const item = await client.withAllowStale().get("/jedi-luke/equipment-lightsaber");
    */
   withAllowStale(allowStale = true): DatabaseClient<TypeMap, AllItemTypes> {
-    return new DatabaseClient(this.client, this.storeId, this.typeMap, this.schemaVersionID, {
-      ...this.callOptions,
-      allowStale,
-    });
+    return new DatabaseClient(
+      this.client,
+      this.storeId,
+      this.typeMap,
+      this.schemaVersionID,
+      this.schemaID,
+      {
+        ...this.callOptions,
+        allowStale,
+      },
+    );
   }
 
   private unmarshal(item: ApiItem): AnyItem<TypeMap, AllItemTypes> {

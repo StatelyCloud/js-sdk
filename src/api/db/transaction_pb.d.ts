@@ -227,11 +227,21 @@ export declare type TransactionBegin = Message<"stately.db.TransactionBegin"> & 
    * set this manually as your generated SDK should know its schema version
    * and wire this in for you.
    *
-   * TODO: Accept a list token, so that we can save an extra sync with the new items.
-   *
    * @generated from field: uint32 schema_version_id = 2;
    */
   schemaVersionId: number;
+
+  /**
+   * schema_id refers to the schema to use for this operation.
+   * If the store_id does not have a schema with this ID, the operation will
+   * error with SchemaNotFound error. You should not have to set this manually
+   * as your generated SDK should know its schema and wire this in for you.
+   *
+   * ; (after clients have been regen'd and updated)
+   *
+   * @generated from field: uint64 schema_id = 3;
+   */
+  schemaId: bigint;
 };
 
 /**

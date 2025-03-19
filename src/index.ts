@@ -1,7 +1,7 @@
 import { DatabaseService } from "./api/db/service_pb.js";
 import { DatabaseClient } from "./database.js";
 import { createNodeClient } from "./node.js";
-import { type ClientOptions, type ItemTypeMap, type StoreID } from "./types.js";
+import { type ClientOptions, type ItemTypeMap, type SchemaID, type StoreID } from "./types.js";
 
 // re-exports
 export { Code } from "@connectrpc/connect";
@@ -35,6 +35,9 @@ export type * from "./types.js";
  * @param schemaVersionID - The schema version ID that was used to generate the
  * itemTypeMap. This is used to ensure that the schema used by the client
  * matches the schema used by the server.
+ * @param schemaID - The schema ID that was used to generate the itemTypeMap.
+ * This is used to ensure that the schema used by the client is bound
+ * to the storeID being used.
  * @param options - Options for the client, like the auth token provider and
  * endpoint.s
  * @example
@@ -49,6 +52,7 @@ export function createClient<
   storeId: StoreID,
   itemTypeMap: TypeMap,
   schemaVersionID: number,
+  schemaID: SchemaID,
   opts: ClientOptions = {},
 ): DatabaseClient<TypeMap, AllItemTypes> {
   const clientFactory = createNodeClient(opts);
@@ -57,5 +61,6 @@ export function createClient<
     BigInt(storeId),
     itemTypeMap,
     schemaVersionID,
+    schemaID,
   );
 }

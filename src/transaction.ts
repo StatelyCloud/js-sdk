@@ -21,6 +21,7 @@ import { MapPutItems, PutOptions, WithPutOptions } from "./database.js";
 import { StatelyError } from "./errors.js";
 import { handleListResponse, ListResult } from "./list-result.js";
 import {
+  SchemaID,
   SchemaVersionID,
   type AnyItem,
   type Item,
@@ -86,6 +87,7 @@ export interface TransactionHelperDeps<
 > {
   storeId: bigint;
   schemaVersionId: SchemaVersionID;
+  schemaId: SchemaID;
   unmarshal: (item: ApiItem) => AnyItem<TypeMap, AllItemTypes>;
   marshal: (item: AnyItem<TypeMap, AllItemTypes>) => ApiItem;
   isType: <T extends keyof TypeMap>(
