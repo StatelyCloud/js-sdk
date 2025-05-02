@@ -13,8 +13,8 @@ const maxBackoffMs = 15_000;
  * username+password and should be kept secret. The access key gets exchanged
  * for an auth token that is automatically refreshed in the background. The
  * automatic refresh can be stopped by providing an abortSignal. This should be
- * passed to clients as `authTokenProvider`. If no accessKey is
- * passed then this will read the env var `STATELY_ACCESS_KEY`.
+ * passed to clients as `authTokenProvider`. If no accessKey is passed then this
+ * will read the env var `STATELY_ACCESS_KEY`.
  * @example
  * const client = createClient({
  *   authTokenProvider: accessKeyAuth({
