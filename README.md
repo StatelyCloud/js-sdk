@@ -1,8 +1,6 @@
-# Stately JavaScript Client
+# Stately JavaScript/TypeScript Client
 
-This is the JavaScript (+ TypeScript!) client for the Stately Cloud API. We're
-still in an invite-only preview mode - if you're interested, please reach out to
-preview@stately.cloud.
+StatelyDB is a document database built on top of DynamoDB. It uses an elastic schema to allow you to update your data model at any time, with automatic backwards and forwards compatibility.
 
 This client is currently meant for use from NodeJS server applications.
 
