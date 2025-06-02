@@ -14,6 +14,13 @@ export type KeyIDInput = string | number | bigint | Uint8Array;
  * keyId(new Uint8Array([1, 2, 3])); // "AQID"
  */
 export function keyId(input: KeyIDInput): string {
+  if (input === null || input === undefined) {
+    throw new StatelyError(
+      "InvalidKeyId",
+      `Key IDs cannot be null or undefined, got: ${input as any}`,
+      Code.InvalidArgument,
+    );
+  }
   if (typeof input === "string") {
     return input.replace(/([%/])/g, "%$1");
   }
@@ -52,10 +59,31 @@ export function keyPath<T extends KeyIDInput[]>(strings: TemplateStringsArray, .
   for (let i = 0; i < strings.length; i++) {
     result += strings[i];
     if (i < expr.length) {
-      result += keyId(expr[i]);
+      try {
+        result += keyId(expr[i]);
+      } catch (e) {
+        // Add some context if possible
+        if (e instanceof StatelyError && e.statelyCode === "InvalidKeyId") {
+          e.message += ` in parameter ${i} of key path ${printKeyPathError(strings, i)}`;
+        }
+        throw e;
+      }
     }
   }
 
+  return result;
+}
+
+function printKeyPathError(strings: TemplateStringsArray, errIndex: number) {
+  let result = "";
+  for (let i = 0; i < strings.length; i++) {
+    result += strings[i];
+    if (i === errIndex) {
+      result += `\${>>${i}<<}`;
+    } else if (strings[i] !== "") {
+      result += `\${${i}}`; // Placeholder for the expression
+    }
+  }
   return result;
 }
 

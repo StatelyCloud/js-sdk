@@ -39,4 +39,10 @@ describe("keyPath", () => {
     const result = keyPath`/users-${userId}/posts-${postId}`;
     expect(result).toBe("/users-AQID/posts-BAUG");
   });
+
+  it("should throw an intelligible error for invalid key IDs", () => {
+    expect(() => keyPath`/users-${undefined as unknown as string}/posts-${456}`).toThrow(
+      "(InvalidArgument/InvalidKeyId) Key IDs cannot be null or undefined, got: undefined in parameter 0 of key path /users-${>>0<<}/posts-${1}",
+    );
+  });
 });
