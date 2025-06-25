@@ -3,32 +3,32 @@ import { EmptySchema } from "@bufbuild/protobuf/wkt";
 import { Code } from "@connectrpc/connect";
 import { type WritableIterable } from "@connectrpc/connect/protocol";
 import { ContinueListDirection } from "./api/db/continue_list_pb.js";
-import { GetItemSchema, type GetItem } from "./api/db/get_pb.js";
+import { type GetItem, GetItemSchema } from "./api/db/get_pb.js";
 import { type Item as ApiItem } from "./api/db/item_pb.js";
 import { SortableProperty } from "./api/db/item_property_pb.js";
-import { SortDirection } from "./api/db/list_pb.js";
+import { FilterConditionSchema } from "./api/db/list_filters_pb.js";
+import { KeyConditionSchema, Operator, SortDirection } from "./api/db/list_pb.js";
 import { type ListToken } from "./api/db/list_token_pb.js";
 import { PutItemSchema } from "./api/db/put_pb.js";
 import {
   TransactionDeleteSchema,
   TransactionGetSchema,
   TransactionPutSchema,
-  TransactionRequestSchema,
   type TransactionRequest,
+  TransactionRequestSchema,
   type TransactionResponse,
 } from "./api/db/transaction_pb.js";
 import { MapPutItems, PutOptions, WithPutOptions } from "./database.js";
 import { StatelyError } from "./errors.js";
 import { handleListResponse, ListResult } from "./list-result.js";
 import {
-  SchemaID,
-  SchemaVersionID,
   type AnyItem,
   type Item,
   type ItemTypeMap,
   type ListOptions,
+  SchemaID,
+  SchemaVersionID,
 } from "./types.js";
-
 // Crazy TypeScript helpers for generated unions
 
 /** Extracts all the field names of a generated oneOf */
@@ -100,7 +100,10 @@ export interface TransactionHelperDeps<
  * all of the transaction methods. It is passed directly to the user-defined
  * handler function.
  */
-export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends keyof TypeMap> {
+export class TransactionHelper<
+  TypeMap extends ItemTypeMap,
+  AllItemTypes extends keyof TypeMap & string,
+> {
   private messageId = 1;
   private client: TransactionHelperDeps<TypeMap, AllItemTypes>;
   private outgoing: WritableIterable<TransactionRequest>;
@@ -319,9 +322,27 @@ export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends
    */
   beginList(
     keyPathPrefix: string,
-    { limit = 0, sortDirection = SortDirection.SORT_ASCENDING }: ListOptions = {},
+    {
+      limit = 0,
+      sortDirection = SortDirection.SORT_ASCENDING,
+      itemTypes = [],
+      gt,
+      gte,
+      lt,
+      lte,
+    }: ListOptions<AllItemTypes> = {},
   ): ListResult<AnyItem<TypeMap, AllItemTypes>> {
     const reqMessageId = this.nextMessageId();
+    const keyConditionParams: [Operator, string | undefined][] = [
+      [Operator.GREATER_THAN, gt],
+      [Operator.GREATER_THAN_OR_EQUAL, gte],
+      [Operator.LESS_THAN, lt],
+      [Operator.LESS_THAN_OR_EQUAL, lte],
+    ];
+    const keyConditions = keyConditionParams
+      .filter(([, value]) => value !== undefined)
+      .map(([operator, keyPath]) => create(KeyConditionSchema, { operator, keyPath: keyPath! }));
+
     this.outgoing.write(
       create(TransactionRequestSchema, {
         messageId: reqMessageId,
@@ -332,6 +353,15 @@ export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends
             limit,
             sortProperty: SortableProperty.KEY_PATH,
             sortDirection,
+            filterConditions: itemTypes.map((itemType) =>
+              create(FilterConditionSchema, {
+                value: {
+                  case: "itemType",
+                  value: itemType,
+                },
+              }),
+            ),
+            keyConditions,
           },
         },
       }),
@@ -510,10 +540,10 @@ export class TransactionHelper<TypeMap extends ItemTypeMap, AllItemTypes extends
  * function (i.e. the argument to `transaction`). The normal data functions
  * should not be used within a transaction handler function`.
  */
-export type Transaction<TypeMap extends ItemTypeMap, AllItemTypes extends keyof TypeMap> = Omit<
-  TransactionHelper<TypeMap, AllItemTypes>,
-  "resp" | "nextMessageId" | "commit" | "abort"
->;
+export type Transaction<
+  TypeMap extends ItemTypeMap,
+  AllItemTypes extends keyof TypeMap & string,
+> = Omit<TransactionHelper<TypeMap, AllItemTypes>, "resp" | "nextMessageId" | "commit" | "abort">;
 
 /**
  * After a transaction is done, this result contains the updated or created

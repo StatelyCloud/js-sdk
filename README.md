@@ -1,6 +1,6 @@
 # Stately JavaScript/TypeScript Client
 
-StatelyDB is a document database built on top of DynamoDB. It uses an elastic schema to allow you to update your data model at any time, with automatic backwards and forwards compatibility.
+StatelyDB is a document database built on top of DynamoDB. It uses Elastic Schema to allow you to update your data model at any time, with automatic backwards and forwards compatibility.
 
 This client is currently meant for use from NodeJS server applications.
 

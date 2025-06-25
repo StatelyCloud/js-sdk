@@ -15,10 +15,10 @@ import { createWritableIterable } from "@connectrpc/connect/protocol";
 import { ContinueListDirection } from "./api/db/continue_list_pb.js";
 import { type Item as ApiItem, ItemSchema } from "./api/db/item_pb.js";
 import { SortableProperty } from "./api/db/item_property_pb.js";
-import { SortDirection } from "./api/db/list_pb.js";
+import { FilterConditionSchema } from "./api/db/list_filters_pb.js";
+import { KeyConditionSchema, Operator, SortDirection } from "./api/db/list_pb.js";
 import { type ListToken } from "./api/db/list_token_pb.js";
 import { PutItemSchema } from "./api/db/put_pb.js";
-import { FilterConditionSchema } from "./api/db/scan_pb.js";
 import { type DatabaseService } from "./api/db/service_pb.js";
 import { type TransactionRequest } from "./api/db/transaction_pb.js";
 import { StatelyError } from "./errors.js";
@@ -331,9 +331,27 @@ export class DatabaseClient<
    */
   beginList(
     keyPathPrefix: string,
-    { limit = 0, sortDirection = SortDirection.SORT_ASCENDING }: ListOptions = {},
+    {
+      limit = 0,
+      sortDirection = SortDirection.SORT_ASCENDING,
+      itemTypes = [],
+      gt,
+      gte,
+      lt,
+      lte,
+    }: ListOptions<AllItemTypes> = {},
   ): ListResult<AnyItem<TypeMap, AllItemTypes>> {
     try {
+      const keyConditionParams: [Operator, string | undefined][] = [
+        [Operator.GREATER_THAN, gt],
+        [Operator.GREATER_THAN_OR_EQUAL, gte],
+        [Operator.LESS_THAN, lt],
+        [Operator.LESS_THAN_OR_EQUAL, lte],
+      ];
+      const keyConditions = keyConditionParams
+        .filter(([, value]) => value !== undefined)
+        .map(([operator, keyPath]) => create(KeyConditionSchema, { operator, keyPath: keyPath! }));
+
       const responseStream = this.client.beginList(
         {
           storeId: this.storeId,
@@ -344,6 +362,15 @@ export class DatabaseClient<
           allowStale: this.callOptions.allowStale,
           schemaVersionId: this.schemaVersionID,
           schemaId: this.schemaID,
+          filterConditions: itemTypes.map((itemType) =>
+            create(FilterConditionSchema, {
+              value: {
+                case: "itemType",
+                value: itemType,
+              },
+            }),
+          ),
+          keyConditions,
         },
         this.connectOptions,
       );

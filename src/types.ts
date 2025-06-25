@@ -106,7 +106,7 @@ export type AnyItem<TypeMap extends ItemTypeMap, AllItemTypes extends keyof Type
 
 // These options are defined here to consolidate their documentation.
 
-export interface ListOptions {
+export interface ListOptions<AllItemTypes extends string> {
   /**
    * limit is the maximum number of items to return. If this is not specified or
    * set to 0, it will default to 100. Fewer items than the limit may be
@@ -116,6 +116,42 @@ export interface ListOptions {
   limit?: number;
   /** The direction to sort the results in. If this is not set, we will sort in ascending order. */
   sortDirection?: SortDirection;
+  /**
+   * itemTypes is a list of item types to filter the scan by. If this is not
+   * specified, all item types will be fetched.
+   */
+  itemTypes?: AllItemTypes[];
+
+  // The following options are used to filter the results based on the key path.
+  // Wherever possible, stately will apply these key conditions at the DB layer
+  // to optimize the list operation latency and cost.
+  // Key conditions may be combined with a key_path_prefix to further
+  // optimize the list operation. HOWEVER Key conditions must share the
+  // same prefix as the keyPathPrefix n the request.
+
+  /**
+   * gt filters results to only include items with a key greater than the
+   * specified value based on lexicographic ordering.
+   */
+  gt?: string;
+
+  /**
+   * gte filters results to only include items with a key greater than or equal
+   * to the specified value based on lexicographic ordering.
+   */
+  gte?: string;
+
+  /**
+   * lt filters results to only include items with a key less than the
+   * specified value based on lexicographic ordering.
+   */
+  lt?: string;
+
+  /**
+   * lte filters results to only include items with a key less than or equal to
+   * the specified value based on lexicographic ordering.
+   */
+  lte?: string;
 }
 
 // These options are defined here to consolidate their documentation.

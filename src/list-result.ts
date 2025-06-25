@@ -40,6 +40,11 @@ export class ListResult<ResultType> implements AsyncGenerator<ResultType, ListTo
   constructor(gen: AsyncGenerator<ResultType, ListToken>) {
     this.gen = gen;
   }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.gen[Symbol.asyncDispose]();
+  }
+
   [Symbol.asyncIterator](): AsyncGenerator<ResultType, ListToken> {
     return this;
   }
