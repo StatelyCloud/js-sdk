@@ -114,13 +114,36 @@ export interface ListOptions<AllItemTypes extends string> {
    * token.can_continue.
    */
   limit?: number;
+
   /** The direction to sort the results in. If this is not set, we will sort in ascending order. */
   sortDirection?: SortDirection;
+
   /**
    * itemTypes is a list of item types to filter the scan by. If this is not
    * specified, all item types will be fetched.
    */
   itemTypes?: AllItemTypes[];
+
+  /**
+   * celFilters are an optional list of item type, CEL expression tuples to filter the
+   * results set by.
+   *
+   * CEL expressions are only evaluated for the item type they are defined for, and
+   * do not affect other item types in the result set. This means if an item type has
+   * no CEL filter and there are no itemTypes filter constraints, it will be included
+   * in the result set.
+   *
+   * In the context of a CEL expression, the key-word `this` refers to the item being
+   * evaluated, and property properties should be accessed by the names as they appear
+   * in schema -- not necessarily as they appear in the generated code for a particular
+   * language. For example, if you have a `Movie` item type with the property `rating`,
+   * you could write a CEL expression like `this.rating == 'R'` to return only movies
+   * that are rated `R`.
+   *
+   * Find the full CEL language definition here:
+   *  https://github.com/google/cel-spec/blob/master/doc/langdef.md
+   */
+  celFilters?: [AllItemTypes, string][];
 
   // The following options are used to filter the results based on the key path.
   // Wherever possible, stately will apply these key conditions at the DB layer
@@ -130,25 +153,25 @@ export interface ListOptions<AllItemTypes extends string> {
   // same prefix as the keyPathPrefix n the request.
 
   /**
-   * gt filters results to only include items with a key greater than the
+   * gt constrains a query to only include items with a key greater than the
    * specified value based on lexicographic ordering.
    */
   gt?: string;
 
   /**
-   * gte filters results to only include items with a key greater than or equal
+   * gte constrains a query to only include items with a key greater than or equal
    * to the specified value based on lexicographic ordering.
    */
   gte?: string;
 
   /**
-   * lt filters results to only include items with a key less than the
+   * lt constrains a query to only include items with a key less than the
    * specified value based on lexicographic ordering.
    */
   lt?: string;
 
   /**
-   * lte filters results to only include items with a key less than or equal to
+   * lte constrains a query to only include items with a key less than or equal to
    * the specified value based on lexicographic ordering.
    */
   lte?: string;
@@ -161,6 +184,28 @@ export interface ScanOptions<AllItemTypes extends string> {
    * specified, all item types will be fetched.
    */
   itemTypes?: AllItemTypes[];
+
+  /**
+   * celFilters are an optional list of item type, CEL expression tuples to filter the
+   * results set by.
+   *
+   * CEL expressions are only evaluated for the item type they are defined for, and
+   * do not affect other item types in the result set. This means if an item type has
+   * no CEL filter and there are no itemTypes filter constraints, it will be included
+   * in the result set.
+   *
+   * In the context of a CEL expression, the key-word `this` refers to the item being
+   * evaluated, and property properties should be accessed by the names as they appear
+   * in schema -- not necessarily as they appear in the generated code for a particular
+   * language. For example, if you have a `Movie` item type with the property `rating`,
+   * you could write a CEL expression like `this.rating == 'R'` to return only movies
+   * that are rated `R`.
+   *
+   * Find the full CEL language definition here:
+   *  https://github.com/google/cel-spec/blob/master/doc/langdef.md
+   */
+  celFilters?: [AllItemTypes, string][];
+
   /**
    * limit is the maximum number of items to return. If this is not specified or
    * set to 0 then all items will be fetched. Fewer items than the limit may be

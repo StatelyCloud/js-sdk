@@ -10,7 +10,7 @@ import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
 export const file_db_list_filters =
   /*@__PURE__*/
   fileDesc(
-    "ChVkYi9saXN0X2ZpbHRlcnMucHJvdG8SCnN0YXRlbHkuZGIiLwoPRmlsdGVyQ29uZGl0aW9uEhMKCWl0ZW1fdHlwZRgBIAEoCUgAQgcKBXZhbHVlQmsKDmNvbS5zdGF0ZWx5LmRiQhBMaXN0RmlsdGVyc1Byb3RvUAGiAgNTRFiqAgpTdGF0ZWx5LkRiygIKU3RhdGVseVxEYuICFlN0YXRlbHlcRGJcR1BCTWV0YWRhdGHqAgtTdGF0ZWx5OjpEYmIGcHJvdG8z",
+    "ChVkYi9saXN0X2ZpbHRlcnMucHJvdG8SCnN0YXRlbHkuZGIiZAoPRmlsdGVyQ29uZGl0aW9uEhMKCWl0ZW1fdHlwZRgBIAEoCUgAEjMKDmNlbF9leHByZXNzaW9uGAIgASgLMhkuc3RhdGVseS5kYi5DZWxFeHByZXNzaW9uSABCBwoFdmFsdWUiNgoNQ2VsRXhwcmVzc2lvbhIRCglpdGVtX3R5cGUYASABKAkSEgoKZXhwcmVzc2lvbhgCIAEoCUJrCg5jb20uc3RhdGVseS5kYkIQTGlzdEZpbHRlcnNQcm90b1ABogIDU0RYqgIKU3RhdGVseS5EYsoCClN0YXRlbHlcRGLiAhZTdGF0ZWx5XERiXEdQQk1ldGFkYXRh6gILU3RhdGVseTo6RGJiBnByb3RvMw",
   );
 
 /**
@@ -18,3 +18,9 @@ export const file_db_list_filters =
  * Use `create(FilterConditionSchema)` to create a new message.
  */
 export const FilterConditionSchema = /*@__PURE__*/ messageDesc(file_db_list_filters, 0);
+
+/**
+ * Describes the message stately.db.CelExpression.
+ * Use `create(CelExpressionSchema)` to create a new message.
+ */
+export const CelExpressionSchema = /*@__PURE__*/ messageDesc(file_db_list_filters, 1);

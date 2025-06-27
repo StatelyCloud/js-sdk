@@ -20,12 +20,24 @@ export declare type FilterCondition = Message<"stately.db.FilterCondition"> & {
   value:
     | {
         /**
-         * item_type is the type of item to filter by.
+         * item_type is the type of item to include in a query response.
          *
          * @generated from field: string item_type = 1;
          */
         value: string;
         case: "itemType";
+      }
+    | {
+        /**
+         * cel_expression is a CEL expression to evaluate against a specific item type.
+         * If an expression evaluates to true, the item is included in the results.
+         * This expression *only* applies to the item type specified in the
+         * CelExpression.item_type field, and is not applied to other item types in the query.
+         *
+         * @generated from field: stately.db.CelExpression cel_expression = 2;
+         */
+        value: CelExpression;
+        case: "celExpression";
       }
     | { case: undefined; value?: undefined };
 };
@@ -35,3 +47,34 @@ export declare type FilterCondition = Message<"stately.db.FilterCondition"> & {
  * Use `create(FilterConditionSchema)` to create a new message.
  */
 export declare const FilterConditionSchema: GenMessage<FilterCondition>;
+
+/**
+ * @generated from message stately.db.CelExpression
+ */
+export declare type CelExpression = Message<"stately.db.CelExpression"> & {
+  /**
+   * item_type is the itemType to evaluate the expression against.
+   *
+   * @generated from field: string item_type = 1;
+   */
+  itemType: string;
+
+  /**
+   * expression is the CEL expression to evaluate.
+   * If the expression evaluates to true, the item is included in the results,
+   * otherwise it is excluded.
+   *
+   * In the context of the CEL expression, 'this' refers to the item being evaluated.
+   * For example, the expression is "this.foo == 'bar'" means that the item
+   * must have a property 'foo' with the value 'bar' to be included in the results.
+   *
+   * @generated from field: string expression = 2;
+   */
+  expression: string;
+};
+
+/**
+ * Describes the message stately.db.CelExpression.
+ * Use `create(CelExpressionSchema)` to create a new message.
+ */
+export declare const CelExpressionSchema: GenMessage<CelExpression>;

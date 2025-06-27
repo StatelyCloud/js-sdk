@@ -15,7 +15,7 @@ import { createWritableIterable } from "@connectrpc/connect/protocol";
 import { ContinueListDirection } from "./api/db/continue_list_pb.js";
 import { type Item as ApiItem, ItemSchema } from "./api/db/item_pb.js";
 import { SortableProperty } from "./api/db/item_property_pb.js";
-import { FilterConditionSchema } from "./api/db/list_filters_pb.js";
+import { type FilterCondition, FilterConditionSchema } from "./api/db/list_filters_pb.js";
 import { KeyConditionSchema, Operator, SortDirection } from "./api/db/list_pb.js";
 import { type ListToken } from "./api/db/list_token_pb.js";
 import { PutItemSchema } from "./api/db/put_pb.js";
@@ -335,6 +335,7 @@ export class DatabaseClient<
       limit = 0,
       sortDirection = SortDirection.SORT_ASCENDING,
       itemTypes = [],
+      celFilters = [],
       gt,
       gte,
       lt,
@@ -362,14 +363,7 @@ export class DatabaseClient<
           allowStale: this.callOptions.allowStale,
           schemaVersionId: this.schemaVersionID,
           schemaId: this.schemaID,
-          filterConditions: itemTypes.map((itemType) =>
-            create(FilterConditionSchema, {
-              value: {
-                case: "itemType",
-                value: itemType,
-              },
-            }),
-          ),
+          filterConditions: this.buildFilters(itemTypes, celFilters),
           keyConditions,
         },
         this.connectOptions,
@@ -465,6 +459,7 @@ export class DatabaseClient<
    */
   beginScan({
     itemTypes = [],
+    celFilters = [],
     limit = 0,
     totalSegments,
     segmentIndex,
@@ -481,14 +476,7 @@ export class DatabaseClient<
         {
           storeId: this.storeId,
           limit,
-          filterCondition: itemTypes.map((itemType) =>
-            create(FilterConditionSchema, {
-              value: {
-                case: "itemType",
-                value: itemType,
-              },
-            }),
-          ),
+          filterCondition: this.buildFilters(itemTypes, celFilters),
           segmentationParams:
             segmentIndex === undefined
               ? undefined
@@ -496,7 +484,6 @@ export class DatabaseClient<
                   totalSegments,
                   segmentIndex,
                 },
-
           schemaVersionId: this.schemaVersionID,
           schemaId: this.schemaID,
         },
@@ -655,6 +642,7 @@ export class DatabaseClient<
         unmarshal: this.unmarshal.bind(this),
         marshal: this.marshal.bind(this),
         isType: this.isType.bind(this),
+        buildFilters: this.buildFilters.bind(this),
       },
       outgoing,
       respIterable[Symbol.asyncIterator](),
@@ -782,6 +770,36 @@ export class DatabaseClient<
         ...this.callOptions,
         allowStale,
       },
+    );
+  }
+
+  // We're referencing the generics of the class, even if we're not using 'this' directly.
+  // eslint-disable-next-line class-methods-use-this
+  private buildFilters(
+    itemTypes: AllItemTypes[],
+    celFilters: [AllItemTypes, string][],
+  ): FilterCondition[] {
+    const filters = itemTypes.map((itemType) =>
+      create(FilterConditionSchema, {
+        value: {
+          case: "itemType",
+          value: itemType,
+        },
+      }),
+    );
+
+    return filters.concat(
+      celFilters.map((celFilter) =>
+        create(FilterConditionSchema, {
+          value: {
+            case: "celExpression",
+            value: {
+              itemType: celFilter[0],
+              expression: celFilter[1],
+            },
+          },
+        }),
+      ),
     );
   }
 

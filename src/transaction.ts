@@ -6,7 +6,7 @@ import { ContinueListDirection } from "./api/db/continue_list_pb.js";
 import { type GetItem, GetItemSchema } from "./api/db/get_pb.js";
 import { type Item as ApiItem } from "./api/db/item_pb.js";
 import { SortableProperty } from "./api/db/item_property_pb.js";
-import { FilterConditionSchema } from "./api/db/list_filters_pb.js";
+import { type FilterCondition } from "./api/db/list_filters_pb.js";
 import { KeyConditionSchema, Operator, SortDirection } from "./api/db/list_pb.js";
 import { type ListToken } from "./api/db/list_token_pb.js";
 import { PutItemSchema } from "./api/db/put_pb.js";
@@ -88,6 +88,10 @@ export interface TransactionHelperDeps<
   storeId: bigint;
   schemaVersionId: SchemaVersionID;
   schemaId: SchemaID;
+  buildFilters: (
+    itemTypes: AllItemTypes[],
+    celFilters: [AllItemTypes, string][],
+  ) => FilterCondition[];
   unmarshal: (item: ApiItem) => AnyItem<TypeMap, AllItemTypes>;
   marshal: (item: AnyItem<TypeMap, AllItemTypes>) => ApiItem;
   isType: <T extends keyof TypeMap>(
@@ -326,6 +330,7 @@ export class TransactionHelper<
       limit = 0,
       sortDirection = SortDirection.SORT_ASCENDING,
       itemTypes = [],
+      celFilters = [],
       gt,
       gte,
       lt,
@@ -353,14 +358,7 @@ export class TransactionHelper<
             limit,
             sortProperty: SortableProperty.KEY_PATH,
             sortDirection,
-            filterConditions: itemTypes.map((itemType) =>
-              create(FilterConditionSchema, {
-                value: {
-                  case: "itemType",
-                  value: itemType,
-                },
-              }),
-            ),
+            filterConditions: this.client.buildFilters(itemTypes, celFilters),
             keyConditions,
           },
         },
