@@ -1,6 +1,6 @@
 {
   "name": "@stately-cloud/client",
-  "version": "0.32.0",
+  "version": "0.33.0",
   "author": "Stately Cloud <support@stately.cloud> (https://stately.cloud/)",
   "description": "Client for StatelyDB, a document database built on top of DynamoDB with Elastic Schema that allows you to change your data model any time with automatic backwards compatibility.",
   "types": "dist/index.d.ts",
@@ -20,10 +20,12 @@
   "keywords": [
     "database",
     "nosql",
-    "schema"
+    "schema",
+    "statelydb",
+    "client"
   ],
   "engines": {
-    "node": ">=18.20"
+    "node": ">=20"
   },
   "exports": {
     ".": {

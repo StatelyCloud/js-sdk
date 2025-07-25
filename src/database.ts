@@ -476,7 +476,7 @@ export class DatabaseClient<
         {
           storeId: this.storeId,
           limit,
-          filterCondition: this.buildFilters(itemTypes, celFilters),
+          filterConditions: this.buildFilters(itemTypes, celFilters),
           segmentationParams:
             segmentIndex === undefined
               ? undefined
