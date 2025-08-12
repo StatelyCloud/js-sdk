@@ -1,6 +1,6 @@
 {
   "name": "@stately-cloud/client",
-  "version": "0.33.0",
+  "version": "0.33.1",
   "author": "Stately Cloud <support@stately.cloud> (https://stately.cloud/)",
   "description": "Client for StatelyDB, a document database built on top of DynamoDB with Elastic Schema that allows you to change your data model any time with automatic backwards compatibility.",
   "types": "dist/index.d.ts",
@@ -46,7 +46,7 @@
     "lint": "eslint 'src/**/*.ts'",
     "fix:eslint": "eslint --fix 'src/**/*.ts'",
     "pretest": "mkdir -p dist-test && cp -r src/api dist-test && tsc -p tsconfig.json",
-    "test": "node --test --enable-source-maps"
+    "test": "node --test --enable-source-maps dist-test/*.test.js"
   },
   "license": "Apache-2.0",
   "devDependencies": {
@@ -59,11 +59,11 @@
     "typescript": "^5.5.4"
   },
   "dependencies": {
-    "@bufbuild/protobuf": "^2.2.0",
+    "@bufbuild/protobuf": "^2.6.3",
     "@connectrpc/connect": "^2.0.0",
     "@connectrpc/connect-node": "^2.0.0"
   },
   "peerDependencies": {
-    "@bufbuild/protobuf": "^2.2.0"
+    "@bufbuild/protobuf": "^2.6.3"
   }
 }
