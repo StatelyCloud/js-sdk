@@ -115,7 +115,10 @@ export interface ListOptions<AllItemTypes extends string> {
    */
   limit?: number;
 
-  /** The direction to sort the results in. If this is not set, we will sort in ascending order. */
+  /**
+   * The direction to sort the results in. If this is not set, we will sort in
+   * ascending order.
+   */
   sortDirection?: SortDirection;
 
   /**

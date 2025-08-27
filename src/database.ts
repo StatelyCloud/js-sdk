@@ -14,7 +14,6 @@ import {
 import { createWritableIterable } from "@connectrpc/connect/protocol";
 import { ContinueListDirection } from "./api/db/continue_list_pb.js";
 import { type Item as ApiItem, ItemSchema } from "./api/db/item_pb.js";
-import { SortableProperty } from "./api/db/item_property_pb.js";
 import { type FilterCondition, FilterConditionSchema } from "./api/db/list_filters_pb.js";
 import { KeyConditionSchema, Operator, SortDirection } from "./api/db/list_pb.js";
 import { type ListToken } from "./api/db/list_token_pb.js";
@@ -141,11 +140,12 @@ export class DatabaseClient<
 
   /**
    * get retrieves an item by its full key path. This will return the item if it
-   * exists, or undefined if it does not. It will fail if  the caller does not
-   * have permission to read Items.
+   * exists, or undefined if it does not.
    * @param itemType - One of the itemType names from your schema. This is used
    * to determine the type of the resulting item.
    * @param keyPath - The full key path of the item.
+   * @returns The Stately Item retrieved from the store or undefined if no item
+   * was found.
    * @example
    * const item = await client.get('Equipment', "/jedi-luke/equipment-lightsaber");
    */
@@ -167,14 +167,16 @@ export class DatabaseClient<
   }
 
   /**
-   * getBatch retrieves up to 100 items by their full key paths. This will return
-   * the corresponding items that exist. It will fail if the caller does not
-   * have permission to read Items. Use BeginList if you want to retrieve
-   * multiple items but don't already know the full key paths of the items you
-   * want to get. You can get items of different types in a single getBatch -
-   * you will need to use `DatabaseClient.isType` to determine what item type
-   * each item is.
-   * @param keyPaths - The full key path of each item to load. Max 100 key paths.
+   * getBatch retrieves multiple items by their full key paths. This will return
+   * the corresponding items that exist. Use beginList instead if you want to
+   * retrieve multiple items but don't already know the full key paths of the
+   * items you want to get. You can get items of different types in a single
+   * getBatch - you will need to use `DatabaseClient.isType` to determine what
+   * item type each item is.
+   * @param keyPaths - The full key path of each item to load.
+   * @returns The list of Items retrieved from the store. These are returned as
+   * generic items and should be checked with `client.isType` to determine their
+   * type.
    * @example
    * const [firstItem, secondItem] = await client.getBatch("/jedi-luke/equipment-lightsaber", "/jedi-luke/equipment-cloak");
    * if (client.isType(firstItem, "Equipment")) {
@@ -201,8 +203,13 @@ export class DatabaseClient<
 
   /**
    * put adds an Item to the Store, or replaces the Item if it already exists at
-   * that path. This will fail if the caller does not have permission to create
-   * Items.
+   * that path.
+   *
+   * This call will fail if:
+   *     - The Item conflicts with an existing Item at the same path and the
+   *       mustNotExist option is set, or the item's ID will be chosen with
+   *       an `initialValue` and one of its other key paths conflicts with an
+   *       existing item.
    * @param item - An Item from your generated schema. Use `withPutOptions` to
    * specify additional options for this item.
    * @param options - Additional options for this put operation - an alternative
@@ -226,13 +233,18 @@ export class DatabaseClient<
   }
 
   /**
-   * putBatch adds up to 50 Items to the Store, or replaces Items if they
-   * already exist at that path. This will fail if the caller does not have
-   * permission to create Items. Data can be provided as either JSON, or as a
-   * proto encoded by a previously agreed upon schema, or by some combination of
-   * the two. You can put items of different types in a single putBatch.
-   * @param items - Items from your generated schema. Max 50 items. Use
-   * `withPutOptions` to add options to individual items.
+   * putBatch adds multiple Items to the Store, or replaces Items if they
+   * already exist at that path. You can put items of different types in a
+   * single putBatch. All puts in the request are applied atomically - there are
+   * no partial successes.
+   *
+   * This will fail if:
+   *   - Any Item conflicts with an existing Item at the same path and its
+   *     MustNotExist option is set, or the item's ID will be chosen with an
+   *     `initialValue` and one of its other key paths conflicts with an existing
+   *     item.
+   * @param items - Items from your generated schema. Use `withPutOptions` to
+   * add options to individual items.
    * @returns The items that were put, with any server-generated fields filled
    * in. They are returned in the same order they were provided.
    * @example
@@ -279,9 +291,12 @@ export class DatabaseClient<
   }
 
   /**
-   * del removes up to 50 Items from the Store by their full key paths. This
-   * will fail if the caller does not have permission to delete Items.
-   * @param keyPaths - The full key paths of the items. Max 50 key paths.
+   * delete removes one or more items from the Store by their full key paths.
+   * delete succeeds even if there isn't an item at that key path. Tombstones
+   * will be saved for deleted items for some time, so that syncList can return
+   * information about deleted items. Deletes are always applied atomically; all
+   * will fail or all will succeed.
+   * @param keyPaths - The full key paths of the items.
    * @example
    * await client.del("/jedi-luke/equipment-lightsaber", "/jedi-luke/equipment-cloak");
    */
@@ -302,13 +317,15 @@ export class DatabaseClient<
   }
 
   /**
-   * beginList retrieves Items that start with a specified keyPathPrefix. The
-   * key path prefix must minimally contain a Group Key (a single key segment
-   * with a namespace and an ID). BeginList will return an empty result set if
-   * there are no items matching that key prefix. This API returns a token that
-   * you can pass to ContinueList to expand the result set, or to SyncList to
-   * get updates within the result set. This can fail if the caller does not
-   * have permission to read Items.
+   * beginList retrieves Items that start with a specified keyPathPrefix from a
+   * single Group. Because it can only list items from a single Group, the key
+   * path prefix must at least start with a full Group Key (a single key segment
+   * with a namespace and an ID, e.g. `/user-1234`).
+   *
+   * beginList will return an empty result set if there are no items matching
+   * that key prefix. This API returns a token that you can pass to
+   * continue_list to expand the result set, or to sync_list to get updates
+   * within the result set.
    *
    * beginList streams results via an AsyncGenerator, allowing you to handle
    * results as they arrive. You can call `collect()` on it to get all the
@@ -316,7 +333,9 @@ export class DatabaseClient<
    *
    * You can list items of different types in a single beginList, and you can
    * use `client.isItemType` to handle different item types.
-   * @param keyPathPrefix - The key path prefix to query for.
+   * @param keyPathPrefix - The key path prefix to query for. It must be at
+   * least a full Group Key (e.g. `/user-1234`).
+   * @returns A ListResult that can be iterated over to get the items.
    * @example
    * // With "for await"
    * const listResp = client.beginList("/jedi-luke/equipment-lightsaber/");
@@ -358,7 +377,6 @@ export class DatabaseClient<
           storeId: this.storeId,
           keyPathPrefix,
           limit,
-          sortProperty: SortableProperty.KEY_PATH,
           sortDirection,
           allowStale: this.callOptions.allowStale,
           schemaVersionId: this.schemaVersionID,
@@ -424,16 +442,9 @@ export class DatabaseClient<
   }
 
   /**
-   * beginScan begins a scan operation over all Items in the store. This API
-   * returns a token that you can pass to continueScan to expand the result set.
-   * This can fail if the caller does not have permission to read Items. Pass a
-   * list of Item types to filter the results to only those types. If you don't
-   * pass any types, all items will be returned.
-   *
-   * The limit parameter allows you to set the max number of items to retrieve.
-   * If set to 0 then the first page of results will be returned which may be
-   * empty because it does not contain items of your selected item types. Be
-   * sure to check `token.canContinue` to see if there are more results to fetch.
+   * beginScan initiates a scan request which will scan over the entire store
+   * and apply the provided filters. This API returns a token that you can pass
+   * to continueScan to paginate through the result set.
    *
    * beginScan streams results via an AsyncGenerator, allowing you to handle
    * results as they arrive. You can call `collect()` on it to get all the
@@ -442,8 +453,9 @@ export class DatabaseClient<
    * You can list items of different types in a single beginScan, and you can
    * use `client.isItemType` to handle different item types.
    *
-   * WARNING: THIS API CAN BE EXTREMELY EXPENSIVE FOR STORES WITH A LARGE NUMBER
-   * OF ITEMS.
+   * WARNING: THIS API CAN BE EXPENSIVE FOR STORES WITH A LARGE NUMBER OF ITEMS.
+   *
+   * @returns A ListResult that can be iterated over to get the items.
    *
    * @example
    * // With "for await"
@@ -496,15 +508,9 @@ export class DatabaseClient<
   }
 
   /**
-   * continueScan takes the token from a beginScan call and returns the next
-   * "page" of results based on the original parameters. It doesn't have options
-   * because it is a continuation of a previous scan operation. It will return a
-   * new token which can be used for another continueScan call, and so on. Each
-   * time you call either continueScan, you should pass the latest version of
-   * the token, and then use the new token from the result in subsequent calls.
-   * Calls to continueScan are tied to the authorization of the original
-   * beginScan call, so if the original beginScan call was allowed, continueScan
-   * with its token should also be allowed.
+   * continueScan takes the token from a begin_scan call and returns the next
+   * "page" of results based on the original query parameters and pagination
+   * options.
    *
    * continueScan streams results via an AsyncGenerator, allowing you to handle
    * results as they arrive. You can call `collect()` on it to get all the
@@ -517,6 +523,7 @@ export class DatabaseClient<
    * OF ITEMS.
    *
    * @param tokenData - the token data from the previous list operation.
+   * @returns A ListResult that can be iterated over to get the items.
    * @example
    * const scanResp = client.continueScan(token.data);
    * for await (const item of scanResp) {
@@ -547,17 +554,18 @@ export class DatabaseClient<
   /**
    * syncList returns all changes to Items within the result set of a previous
    * List operation. For all Items within the result set that were modified, it
-   * returns the full Item at in its current state. It also returns a list of
-   * Item key paths that were deleted since the last syncList, which you should
-   * reconcile with your view of items returned from previous
-   * beginList/continueList calls. Using this API, you can start with an initial
-   * set of items from beginList, and then stay up to date on any changes via
-   * repeated syncList requests over time. The token is the same one used by
-   * continueList - each time you call either continueList or syncList, you
-   * should pass the latest version of the token, and then use the new token
-   * from the result in subsequent calls. Note that if the result set has
+   * returns the full Item at in its current state. If the result set has
    * already been expanded to the end (in the direction of the original
-   * beginList request), syncList will return newly created Items. You may
+   * beginList request), syncList will return newly created Items as well. It
+   * also returns a list of Item key paths that were deleted since the last
+   * syncList, which you should reconcile with your view of items returned from
+   * previous beginList/continueList calls. Using this API, you can start with
+   * an initial set of items from beginList, and then stay up to date on any
+   * changes via repeated syncList requests over time.
+   *
+   * The token is the same one used by continueList - each time you call either
+   * continueList or syncList, you should pass the latest version of the token,
+   * and then use the new token from the result in subsequent calls. You may
    * interleave continueList and syncList calls however you like, but it does
    * not make sense to make both calls in parallel. Calls to syncList are tied
    * to the authorization of the original beginList call, so if the original
@@ -567,8 +575,20 @@ export class DatabaseClient<
    * results as they arrive. You can call `collect()` on it to get all the
    * results as a list.
    *
-   * You can sync items of different types in a single syncList, and you can use
-   * `client.isItemType` to handle different item types.
+   * Each result will have one of the following values for its `type` property:
+   *     - "changed": An item that was changed or added since the last
+   *       SyncList call.
+   *     - "deleted": The key path of an item that was deleted since
+   *       the last SyncList call.
+   *     - "updatedOutsideWindow": An item that was updated but
+   *       is not within the current result set. You can treat this like
+   *       "deleted", but the item hasn't actually been deleted, it's
+   *       just not part of your view of the list anymore.
+   *     - "reset": A reset signal that indicates any previously cached
+   *       view of the result set is no longer valid. You should throw away
+   *       any locally cached data. This will always be followed by a series
+   *       of "changed" messages that make up a new view of the result set.
+   * @returns A ListResult that can be iterated over to get the changes.
    * @example
    * const syncResp = client.syncListStream(token.data);
    * for await (const result of syncResp) {
@@ -606,20 +626,27 @@ export class DatabaseClient<
   }
 
   /**
-   * Transaction starts a transaction, within which you can issue writes and
-   * reads in any order, and all writes will either succeed or all will fail.
+   * transaction allows you to issue reads and writes in any order, and all
+   * writes will either succeed or all will fail when the transaction finishes.
+   * You pass it a function with a single parameter, the transaction handler,
+   * which lets you perform operations within the transaction.
+   *
    * Reads are guaranteed to reflect the state as of when the transaction
-   * started. This method may fail if another transaction commits before this
-   * one finishes
-   * - in that case, you should retry your transaction.
+   * started. A transaction may fail if another transaction commits before this
+   * one finishes - in that case, you should retry your transaction.
    *
-   * If any error is thrown from the handler, the transaction is aborted and
-   * none of the changes made in it will be applied. If the handler returns
-   * without error, the transaction is automatically committed.
+   * If any error is thrown from the handler function, the transaction is
+   * aborted and none of the changes made in it will be applied. If the handler
+   * returns without error, the transaction is automatically committed.
    *
-   * If any of the operations in the handler fails (e.g. a request is invalid)
-   * you may not find out until the *next* operation, or once the handler
-   * returns, due to some technicalities about how requests are handled.
+   * If any of the operations in the handler function fails (e.g. a request is
+   * invalid) you may not find out until the *next* operation, or once the block
+   * finishes, due to some technicalities about how requests are handled.
+   *
+   * When the transaction is committed, the result property will contain the
+   * full version of any items that were put in the transaction, and the
+   * committed property will be True. If the transaction was aborted, the
+   * committed property will be False.
    *
    * @example
    * await client.transaction(async (txn) => {

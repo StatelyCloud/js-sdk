@@ -5,7 +5,6 @@ import { type WritableIterable } from "@connectrpc/connect/protocol";
 import { ContinueListDirection } from "./api/db/continue_list_pb.js";
 import { type GetItem, GetItemSchema } from "./api/db/get_pb.js";
 import { type Item as ApiItem } from "./api/db/item_pb.js";
-import { SortableProperty } from "./api/db/item_property_pb.js";
 import { type FilterCondition } from "./api/db/list_filters_pb.js";
 import { KeyConditionSchema, Operator, SortDirection } from "./api/db/list_pb.js";
 import { type ListToken } from "./api/db/list_token_pb.js";
@@ -145,14 +144,13 @@ export class TransactionHelper<
   }
 
   /**
-   * getBatch retrieves up to 100 items by their full key paths. This will return
-   * the corresponding items that exist. It will fail if the caller does not
-   * have permission to read Items. Use BeginList if you want to retrieve
-   * multiple items but don't already know the full key paths of the items you
-   * want to get. You can get items of different types in a single getBatch -
-   * you will need to use `DatabaseClient.isItemOfType` to determine what item
-   * type each item is.
-   * @param keyPaths - The full key path of each item to load. Max 100 key paths.
+   * getBatch retrieves multiple items by their full key paths. This will return
+   * the corresponding items that exist. Use beginList instead if you want to
+   * retrieve multiple items but don't already know the full key paths of the
+   * items you want to get. You can get items of different types in a single
+   * getBatch - you will need to use `DatabaseClient.isItemOfType` to determine
+   * what item type each item is.
+   * @param keyPaths - The full key path of each item to load.
    * @example
    * const [firstItem, secondItem] = await txn.getBatch("/jedi-luke/equipment-lightsaber", "/jedi-luke/equipment-cloak");
    * if (client.isItemOfType(firstItem, "Equipment")) {
@@ -177,8 +175,7 @@ export class TransactionHelper<
 
   /**
    * get retrieves an item by its full key path. This will return the item if it
-   * exists, or undefined if it does not. It will fail if  the caller does not
-   * have permission to read Items.
+   * exists, or undefined if it does not.
    * @param itemType - One of the itemType names from your schema. This is used
    * to determine the type of the resulting item.
    * @param keyPath - The full key path of the item.
@@ -204,8 +201,12 @@ export class TransactionHelper<
 
   /**
    * put adds an Item to the Store, or replaces the Item if it already exists at
-   * that path. This will fail if the caller does not have permission to create
-   * Items.
+   * that path. Unlike the put method outside of a transaction, this only
+   * returns the generated ID of the item, and then only if the item was newly
+   * created and has an `initialValue` field in its key. This is so you can use
+   * that ID in subsequent puts to reference newly created items. The final put
+   * items will not be returned until the transaction is committed, in which
+   * case they will be included in the `TransactionResult.puts` list.
    * @param item - An Item from your generated schema. Use `withPutOptions` to
    * specify additional options for this item.
    * @param options - Additional options for this put operation - an alternative
@@ -229,14 +230,15 @@ export class TransactionHelper<
   }
 
   /**
-   * putBatch adds up to 50 Items to the Store, or replaces Items if they
-   * already exist at that path. This will fail if the caller does not have
-   * permission to create Items. Data can be provided as either JSON, or as a
-   * proto encoded by a previously agreed upon schema, or by some combination of
-   * the two. You can put items of different types in a single putBatch. Puts
-   * will not be acknowledged until the transaction is committed - the
-   * TransactionResult will contain the updated metadata for each item.
-   * @param items - Items from your generated schema. Max 50 items. Use
+   * putBatch adds multiple Items to the Store, or replaces Items if they
+   * already exist at that path. Unlike the put_batch method outside of a
+   * transaction, this only returns the generated IDs of the items, and then
+   * only if the item was newly created and has an `initialValue` field in its
+   * key. The IDs are returned in the same order as the inputs. This is so you
+   * can use that ID in subsequent puts to reference newly created items. The
+   * final put items will not be returned until the transaction is committed, in
+   * which case they will be included in the `TransactionResult.puts` list.
+   * @param items - Items from your generated schema. Use
    * `withPutOptions` to add options to individual items.
    * @returns An array of generated IDs for each item, if that item had an ID
    * generated for its "initialValue" field. Otherwise the value is undefined.
@@ -279,9 +281,9 @@ export class TransactionHelper<
   }
 
   /**
-   * del removes up to 50 Items from the Store by their full key paths. This
-   * will fail if the caller does not have permission to delete Items.
-   * @param keyPaths - The full key paths of the items. Max 50 key paths.
+   * delete removes one or more items from the Store by their full key paths.
+   * delete succeeds even if there isn't an item at that key path.
+   * @param keyPaths - The full key paths of the items.
    * @example
    * await txn.del("/jedi-luke/equipment-lightsaber", "/jedi-luke/equipment-cloak");
    */
@@ -297,13 +299,14 @@ export class TransactionHelper<
   }
 
   /**
-   * beginList retrieves Items that start with a specified keyPathPrefix. The
-   * key path prefix must minimally contain a Group Key (a single key segment
-   * with a namespace and an ID). BeginList will return an empty result set if
-   * there are no items matching that key prefix. This API returns a token that
-   * you can pass to ContinueList to expand the result set, or to SyncList to
-   * get updates within the result set. This can fail if the caller does not
-   * have permission to read Items.
+   * beginList retrieves Items that start with a specified keyPathPrefix from a
+   * single Group. Because it can only list items from a single Group, the key
+   * path prefix must at least start with a full Group Key (a single key segment
+   * with a namespace and an ID, e.g. `/user-1234`).
+   *
+   * beginList will return an empty result set if there are no items matching
+   * that key prefix. This API returns a token that you can pass to continueList
+   * to expand the result set.
    *
    * beginList streams results via an AsyncGenerator, allowing you to handle
    * results as they arrive. You can call `collect()` on it to get all the
@@ -311,7 +314,8 @@ export class TransactionHelper<
    *
    * You can list items of different types in a single beginList, and you can
    * use `client.isItemType` to handle different item types.
-   * @param keyPathPrefix - The key path prefix to query for.
+   * @param keyPathPrefix - The key path prefix to query for. It must be at
+   * least a full Group Key (e.g. `/user-1234`).
    * @example
    * // With "for await"
    * const listResp = txn.beginList("/jedi-luke/equipment-lightsaber/");
@@ -356,7 +360,6 @@ export class TransactionHelper<
           value: {
             keyPathPrefix,
             limit,
-            sortProperty: SortableProperty.KEY_PATH,
             sortDirection,
             filterConditions: this.client.buildFilters(itemTypes, celFilters),
             keyConditions,

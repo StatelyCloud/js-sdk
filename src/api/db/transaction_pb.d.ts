@@ -9,7 +9,6 @@ import type { ContinueListDirection } from "./continue_list_pb.js";
 import type { DeleteItem, DeleteResult } from "./delete_pb.js";
 import type { GetItem } from "./get_pb.js";
 import type { Item } from "./item_pb.js";
-import type { SortableProperty } from "./item_property_pb.js";
 import type { FilterCondition } from "./list_filters_pb.js";
 import type { KeyCondition, ListFinished, ListPartialResult, SortDirection } from "./list_pb.js";
 import type { PutItem } from "./put_pb.js";
@@ -296,14 +295,6 @@ export declare type TransactionBeginList = Message<"stately.db.TransactionBeginL
    * @generated from field: uint32 limit = 2;
    */
   limit: number;
-
-  /**
-   * sort_property is the property of the item to sort the results by. If this
-   * is not set, we will sort by key path.
-   *
-   * @generated from field: stately.db.SortableProperty sort_property = 3;
-   */
-  sortProperty: SortableProperty;
 
   /**
    * sort_direction is the direction to sort the results in. If this is not set,

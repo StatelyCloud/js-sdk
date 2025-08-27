@@ -5,7 +5,6 @@
 import type { Message } from "@bufbuild/protobuf";
 import type { GenEnum, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import type { Item } from "./item_pb.js";
-import type { SortableProperty } from "./item_property_pb.js";
 import type { FilterCondition } from "./list_filters_pb.js";
 import type { ListToken } from "./list_token_pb.js";
 
@@ -53,14 +52,6 @@ export declare type BeginListRequest = Message<"stately.db.BeginListRequest"> & 
    * @generated from field: bool allow_stale = 4;
    */
   allowStale: boolean;
-
-  /**
-   * sort_property is the property of the item to sort the results by. If this
-   * is not set, we will sort by key path.
-   *
-   * @generated from field: stately.db.SortableProperty sort_property = 5;
-   */
-  sortProperty: SortableProperty;
 
   /**
    * sort_direction is the direction to sort the results in. If this is not set,

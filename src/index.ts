@@ -5,7 +5,6 @@ import { type ClientOptions, type ItemTypeMap, type SchemaID, type StoreID } fro
 
 // re-exports
 export { Code } from "@connectrpc/connect";
-export { SortableProperty } from "./api/db/item_property_pb.js";
 export { SortDirection } from "./api/db/list_pb.js";
 export type { ListToken } from "./api/db/list_token_pb.js";
 export { accessKeyAuth } from "./auth.js";
