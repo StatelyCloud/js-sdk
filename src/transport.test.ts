@@ -1,6 +1,6 @@
 import { expect } from "expect";
 import { describe, it } from "node:test";
-import { makeEndpoint } from "./node.js";
+import { makeEndpoint } from "./transport.js";
 
 describe("makeEndpoint", () => {
   describe("makeEndpoint", () => {

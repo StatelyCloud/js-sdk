@@ -1,6 +1,6 @@
 {
   "name": "@stately-cloud/client",
-  "version": "0.34.0",
+  "version": "0.35.0",
   "author": "Stately Cloud <support@stately.cloud> (https://stately.cloud/)",
   "description": "Client for StatelyDB, a document database built on top of DynamoDB with Elastic Schema that allows you to change your data model any time with automatic backwards compatibility.",
   "types": "dist/index.d.ts",
@@ -28,9 +28,17 @@
     "node": ">=20"
   },
   "exports": {
+    "./node": {
+      "types": "./dist/index.node.d.ts",
+      "import": "./dist/index.node.js"
+    },
+    "./web": {
+      "types": "./dist/index.web.d.ts",
+      "import": "./dist/index.web.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "import": "./dist/index.js"
     },
     "./package.json": "./package.json"
   },
@@ -61,7 +69,8 @@
   "dependencies": {
     "@bufbuild/protobuf": "^2.6.3",
     "@connectrpc/connect": "^2.0.0",
-    "@connectrpc/connect-node": "^2.0.0"
+    "@connectrpc/connect-node": "^2.0.0",
+    "@connectrpc/connect-web": "^2.0.0"
   },
   "peerDependencies": {
     "@bufbuild/protobuf": "^2.6.3"

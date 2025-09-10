@@ -900,7 +900,13 @@ export class DatabaseClient<
   }
 
   private get connectOptions(): ConnectCallOptions {
-    const callOptions: ConnectCallOptions = {};
+    const callOptions: ConnectCallOptions = {
+      // always put the storeID in the header
+      // for DB requests.
+      headers: {
+        "X-Stately-StoreID": String(this.storeId),
+      },
+    };
     if (this.callOptions.timeoutMs) {
       callOptions.timeoutMs = this.callOptions.timeoutMs;
     } else if (this.callOptions.deadline) {

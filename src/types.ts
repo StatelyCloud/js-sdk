@@ -50,7 +50,77 @@ export interface CallOptions {
   allowStale?: boolean;
 }
 
-export interface ClientOptions {
+/**
+ * ClientOptions are passed by the customer into the generated `createClient`
+ * function to configure the client. This is the single top level configuration
+ * that a customer interacts with.
+ */
+export interface ClientOptions extends TransportOptions {
+  /**
+   * The store ID to use for this client - all calls this client
+   * is passed into will be targeted to this store.
+   */
+  storeId: StoreID;
+
+  /**
+   * Transport function to use - pass nodeTransport or webTransport.
+   */
+  transport: TransportFactory;
+}
+
+/**
+ * InternalClientOptions are the options passed into the SDK client. These
+ * options are derived from the ClientOptions in the generated createClient
+ * function.
+ * @private
+ */
+export interface InternalClientOptions<TypeMap extends ItemTypeMap> {
+  /**
+   * The store ID to use for this client - all calls this client
+   * is passed into will be targeted to this store.
+   */
+  storeId: StoreID;
+
+  /**
+   * The map of item type names to their corresponding proto message schemas.
+   */
+  itemTypeMap: TypeMap;
+
+  /**
+   * The schema version ID for this client.
+   */
+  schemaVersionID: SchemaVersionID;
+
+  /**
+   * The schema ID for this client.
+   */
+  schemaID: SchemaID;
+  /**
+   * A factory function for creating Connect clients that talk to Stately
+   * services.
+   */
+  clientFactory: ClientFactory;
+}
+
+/**
+ * A factory function for creating a web Connect client. noAuth is not supported on the web.
+ */
+export type WebTransportFactory = (options: Omit<TransportOptions, "noAuth">) => ClientFactory;
+
+/**
+ * A factory function for creating a Node.js Connect client.
+ */
+export type NodeTransportFactory = (options: TransportOptions) => ClientFactory;
+
+/**
+ * A transport factory is a function that is used to create a Connect client.
+ */
+export type TransportFactory = WebTransportFactory | NodeTransportFactory;
+
+/**
+ * Options for configuring the transport used by the client.
+ */
+export interface TransportOptions {
   /**
    * The Stately Cloud API endpoint to use. If not set, this will use the
    * default endpoint.

@@ -1,10 +1,11 @@
-import { Code, createClient, type Interceptor } from "@connectrpc/connect";
+import { Code } from "@connectrpc/connect";
 import { createConnectTransport, Http2SessionManager } from "@connectrpc/connect-node";
 import { accessKeyAuth } from "./auth.js";
 import { StatelyError } from "./errors.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import { requestIdMiddleware } from "./middleware/request-id.js";
-import type { ClientFactory, ClientOptions } from "./types.js";
+import { createBaseInterceptors, createClientFactory, makeEndpoint } from "./transport.js";
+import type { ClientFactory, TransportOptions } from "./types.js";
 
 /**
  * Creates a configuration for a Stately Cloud API client, to be used from
@@ -12,16 +13,16 @@ import type { ClientFactory, ClientOptions } from "./types.js";
  * API clients - it gets passed into functions that construct clients for
  * individual APIs.
  */
-export function createNodeClient({
+export function nodeTransport({
   authTokenProvider,
   endpoint,
   region,
   noAuth,
-}: ClientOptions = {}): ClientFactory {
+}: TransportOptions = {}): ClientFactory {
   if (!("Headers" in global)) {
     throw new StatelyError(
       "IncompatibleEnvironment",
-      "createNodeClient can only be used in environments with a `Headers` constructor that's globally available. You may need a newer Node version, or to install a polyfill for `fetch`.",
+      "nodeTransport can only be used in environments with a `Headers` constructor that's globally available. You may need a newer Node version, or to install a polyfill for `fetch`.",
       Code.FailedPrecondition,
     );
   }
@@ -39,19 +40,15 @@ export function createNodeClient({
   const baseUrl = makeEndpoint(endpoint, region);
 
   const sessionManager = new Http2SessionManager(baseUrl);
-  const authTransport = createConnectTransport({
-    baseUrl,
-    httpVersion: "2",
-    interceptors: [requestIdMiddleware],
-    sessionManager,
-  });
-
-  const interceptors: Interceptor[] = [
-    requestIdMiddleware,
-    // retryMiddleware,
-  ];
+  const interceptors = createBaseInterceptors();
 
   if (authTokenProvider) {
+    const authTransport = createConnectTransport({
+      baseUrl,
+      httpVersion: "2",
+      interceptors: [requestIdMiddleware],
+      sessionManager,
+    });
     interceptors.push(
       createAuthMiddleware(authTokenProvider(authTransport, () => sessionManager.abort())),
     );
@@ -63,18 +60,5 @@ export function createNodeClient({
     interceptors,
   });
 
-  return (definition) => createClient(definition, transport);
-}
-
-export function makeEndpoint(endpoint: string | undefined, region: string | undefined): string {
-  if (endpoint) {
-    return endpoint;
-  }
-  if (!region) {
-    return "https://api.stately.cloud";
-  }
-  if (region.startsWith("aws-")) {
-    region = region.slice(4);
-  }
-  return `https://${region}.aws.api.stately.cloud`;
+  return createClientFactory(transport);
 }
