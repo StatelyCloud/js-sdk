@@ -1,4 +1,14 @@
 // re-exports
+export type { Message as ProtobufESMessage } from "@bufbuild/protobuf";
+export {
+  enumDesc,
+  fileDesc,
+  messageDesc,
+  tsEnum,
+  type GenEnum,
+  type GenFile,
+  type GenMessage,
+} from "@bufbuild/protobuf/codegenv2";
 export { Code, Transport } from "@connectrpc/connect";
 export { SortDirection } from "./api/db/list_pb.js";
 export type { ListToken } from "./api/db/list_token_pb.js";
@@ -16,9 +26,11 @@ export type {
 } from "./list-result.js";
 export { type Transaction, type TransactionResult } from "./transaction.js";
 export type * from "./types.js";
+
 import { DatabaseService } from "./api/db/service_pb.js";
 import { DatabaseClient } from "./database.js";
 import { type InternalClientOptions, type ItemTypeMap } from "./types.js";
+
 /**
  * Create a new DatabaseClient that allows operations against StatelyDB. This
  * shouldn't be called directly - instead, use the generated `createClient`
