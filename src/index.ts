@@ -1,5 +1,5 @@
 // re-exports
-export type { Message as ProtobufESMessage } from "@bufbuild/protobuf";
+export type { MessageInitShape, Message as ProtobufESMessage } from "@bufbuild/protobuf";
 export {
   enumDesc,
   fileDesc,
@@ -27,9 +27,10 @@ export type {
 export { type Transaction, type TransactionResult } from "./transaction.js";
 export type * from "./types.js";
 
+import { create } from "@bufbuild/protobuf";
 import { DatabaseService } from "./api/db/service_pb.js";
 import { DatabaseClient } from "./database.js";
-import { type InternalClientOptions, type ItemTypeMap } from "./types.js";
+import { Item, ItemInit, type InternalClientOptions, type ItemTypeMap } from "./types.js";
 
 /**
  * Create a new DatabaseClient that allows operations against StatelyDB. This
@@ -46,10 +47,7 @@ import { type InternalClientOptions, type ItemTypeMap } from "./types.js";
  * @param schemaID - The schema ID that was used to generate the itemTypeMap.
  * This is used to ensure that the schema used by the client is bound
  * to the storeID being used.
- * @example
- * const client = createClient(1221515n, itemTypeMap);
- * const item = await client.get("/jedi-luke/equipment-lightsaber");
- * const orderItems = await client.withStoreId(6545212412n).beginList("/orders-454/items").items;
+ * @private this is used by the generated code and should not be called directly.
  */
 export function createClient<
   TypeMap extends ItemTypeMap,
@@ -68,4 +66,20 @@ export function createClient<
     schemaVersionID,
     schemaID,
   );
+}
+
+/**
+ * Generate a typed `create` function for the given item type map. This is the
+ * same as DatabaseClient.create, but is useful if you need to create items
+ * outside of a DatabaseClient context.
+ * @param typeMap - The item type map for this client, which maps item type
+ * names to their protobuf definitions. This comes from the generated schema
+ * package.
+ * @private this is used by the generated code and should not be called directly.
+ */
+export function makeCreateFunction<TypeMap extends ItemTypeMap>(typeMap: TypeMap) {
+  return <T extends keyof TypeMap>(typeName: T, init?: ItemInit<TypeMap, T>): Item<TypeMap, T> => {
+    const protoObj = create(typeMap[typeName], init);
+    return protoObj as Item<TypeMap, T>;
+  };
 }

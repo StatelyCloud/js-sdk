@@ -1,4 +1,4 @@
-import type { DescMessage, DescService, MessageShape } from "@bufbuild/protobuf";
+import type { DescMessage, DescService, MessageInitShape, MessageShape } from "@bufbuild/protobuf";
 import type { Client, Transport } from "@connectrpc/connect";
 import type { SortDirection } from "./api/db/list_pb.js";
 
@@ -159,6 +159,15 @@ export type ClientFactory = <Service extends DescService>(definition: Service) =
  * generated from your schema definition.
  */
 export type Item<TypeMap extends ItemTypeMap, T extends keyof TypeMap> = MessageShape<TypeMap[T]>;
+
+/**
+ * ItemInit is the type used to create a new item of the specified type. It
+ * allows fields to be unspecified and will fill them in with their zero value.
+ */
+export type ItemInit<TypeMap extends ItemTypeMap, T extends keyof TypeMap> = MessageInitShape<
+  TypeMap[T]
+> &
+  unknown /* this forces the type to show up MessageInit<MyType> in intellisense */;
 
 /**
  * An ItemTypeMap is a map of item type names to their corresponding proto
