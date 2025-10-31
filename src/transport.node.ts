@@ -18,6 +18,7 @@ export function nodeTransport({
   endpoint,
   region,
   noAuth,
+  interceptors: optionalInterceptors = [],
 }: TransportOptions = {}): ClientFactory {
   if (!("Headers" in global)) {
     throw new StatelyError(
@@ -51,6 +52,7 @@ export function nodeTransport({
     });
     interceptors.push(
       createAuthMiddleware(authTokenProvider(authTransport, () => sessionManager.abort())),
+      ...optionalInterceptors,
     );
   }
 

@@ -1,6 +1,7 @@
 import {
   create,
   fromBinary,
+  fromJson,
   type MessageInitShape,
   MessageShape,
   toBinary,
@@ -843,6 +844,20 @@ export class DatabaseClient<
       case "proto":
         try {
           return fromBinary(protoSchema, item.payload.value) as AnyItem<TypeMap, AllItemTypes>;
+        } catch (e) {
+          if (e instanceof Error) {
+            throw new StatelyError(
+              "UnmarshalFailure",
+              `Failed to unmarshal item type ${item.itemType}: ${e.message}`,
+              Code.InvalidArgument,
+              e,
+            );
+          }
+          throw e;
+        }
+      case "json":
+        try {
+          return fromJson(protoSchema, item.payload.value) as AnyItem<TypeMap, AllItemTypes>;
         } catch (e) {
           if (e instanceof Error) {
             throw new StatelyError(

@@ -16,6 +16,7 @@ export function webTransport({
   authTokenProvider,
   endpoint,
   region,
+  interceptors: optionalInterceptors = [],
 }: Omit<TransportOptions, "noAuth"> = {}): ClientFactory {
   // Check for browser/web worker environment
   if (typeof fetch === "undefined") {
@@ -56,11 +57,11 @@ export function webTransport({
         // We could potentially implement request cancellation here if needed
       }),
     ),
+    ...optionalInterceptors,
   );
 
   const transport = createConnectTransport({
     baseUrl,
-    // fetch: globalThis.fetch as typeof fetch,
     interceptors,
   });
 

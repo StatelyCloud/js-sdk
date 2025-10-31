@@ -1,6 +1,7 @@
 import type { DescMessage, DescService, MessageInitShape, MessageShape } from "@bufbuild/protobuf";
-import type { Client, Transport } from "@connectrpc/connect";
+import type { Client, Interceptor, Transport } from "@connectrpc/connect";
 import type { SortDirection } from "./api/db/list_pb.js";
+export type { Interceptor } from "@connectrpc/connect";
 
 // typed IDs
 export type StoreID = bigint | number;
@@ -146,6 +147,11 @@ export interface TransportOptions {
    * your own.
    */
   authTokenProvider?: (transport: Transport, close: () => void) => AuthTokenProvider;
+
+  /**
+   * Additional interceptors to add to the transport stack.
+   */
+  interceptors?: Interceptor[];
 }
 
 /**
